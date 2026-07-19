@@ -150,47 +150,27 @@ export default function Login() {
   const isSignup = authMode === "signup";
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4">
-      {/* Animated background */}
-      <div className="bg-grid" />
-
-      {/* Ambient glow orbs */}
-      <motion.div
-        className="pointer-events-none absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full opacity-20 blur-[120px]"
-        style={{ background: "radial-gradient(circle, #00f0ff 0%, transparent 70%)" }}
-        animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.25, 0.15] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="pointer-events-none absolute -bottom-40 -right-40 h-[500px] w-[500px] rounded-full opacity-20 blur-[120px]"
-        style={{ background: "radial-gradient(circle, #a855f7 0%, transparent 70%)" }}
-        animate={{ scale: [1.2, 1, 1.2], opacity: [0.2, 0.1, 0.2] }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-      />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4" style={{ background: "var(--color-navy)" }}>
+      {/* Torch stripe accent */}
+      <div className="torch-stripe" style={{ top: "-100px", right: "15%", opacity: 0.5 }} />
 
       {/* Login card */}
       <motion.div
-        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        initial={{ opacity: 0, y: 25, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="glass-strong relative z-10 w-full max-w-md rounded-2xl p-8 sm:p-10"
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="card-elevated relative z-10 w-full max-w-md rounded-2xl p-8 sm:p-10"
+        style={{ background: "var(--color-charcoal)" }}
       >
         {/* Logo */}
         <motion.div className="mb-6 text-center" layout>
-          <motion.h1
-            className="font-display text-4xl font-bold tracking-wider text-neon-cyan text-glow-cyan sm:text-5xl"
-            animate={{
-              textShadow: [
-                "0 0 10px rgba(0,240,255,0.6), 0 0 40px rgba(0,240,255,0.3)",
-                "0 0 20px rgba(0,240,255,0.8), 0 0 60px rgba(0,240,255,0.4)",
-                "0 0 10px rgba(0,240,255,0.6), 0 0 40px rgba(0,240,255,0.3)",
-              ],
-            }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          <h1
+            className="font-display text-4xl tracking-wider sm:text-5xl"
+            style={{ color: "var(--color-flame)" }}
           >
             OLYMPUS
-          </motion.h1>
-          <p className="mt-2 text-sm text-slate-400">Sports Tournament Platform</p>
+          </h1>
+          <p className="mt-2 text-sm" style={{ color: "var(--color-stone)" }}>IIIT Vadodara Sports Fest</p>
         </motion.div>
 
         {/* Auth mode badge */}
@@ -200,16 +180,20 @@ export default function Login() {
         >
           <motion.div
             key={authMode}
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2 rounded-full border border-neon-cyan/15 bg-neon-cyan/5 px-4 py-1.5"
+            className="flex items-center gap-2 rounded-full border px-4 py-1.5"
+            style={{
+              borderColor: "rgba(232, 97, 45, 0.2)",
+              background: "rgba(232, 97, 45, 0.06)",
+            }}
           >
             {isSignup ? (
-              <UserPlus className="h-3.5 w-3.5 text-neon-cyan" />
+              <UserPlus className="h-3.5 w-3.5" style={{ color: "var(--color-flame)" }} />
             ) : (
-              <LogIn className="h-3.5 w-3.5 text-neon-cyan" />
+              <LogIn className="h-3.5 w-3.5" style={{ color: "var(--color-flame)" }} />
             )}
-            <span className="text-xs font-semibold text-neon-cyan">
+            <span className="text-xs font-semibold" style={{ color: "var(--color-flame)" }}>
               {isSignup ? "Create Account" : "Welcome Back"}
             </span>
           </motion.div>
@@ -218,20 +202,20 @@ export default function Login() {
         <AnimatePresence mode="wait">
           <motion.form
             key={authMode}
-            initial={{ opacity: 0, x: isSignup ? -20 : 20 }}
+            initial={{ opacity: 0, x: isSignup ? -15 : 15 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: isSignup ? 20 : -20 }}
-            transition={{ duration: 0.3 }}
+            exit={{ opacity: 0, x: isSignup ? 15 : -15 }}
+            transition={{ duration: 0.25 }}
             onSubmit={isSignup ? handleSignup : handleLogin}
             className="space-y-4"
           >
             {/* Email input */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-300">
+              <label className="mb-2 block text-sm font-medium" style={{ color: "var(--color-cream)" }}>
                 Institute Email
               </label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2" style={{ color: "var(--color-stone)" }} />
                 <input
                   id="login-email"
                   type="email"
@@ -242,23 +226,28 @@ export default function Login() {
                     setSuccess("");
                   }}
                   placeholder="yourname@diu.iiitvadodara.ac.in"
-                  className="w-full rounded-xl border border-slate-700/50 bg-slate-900/80 py-3.5 pl-11 pr-4 text-white placeholder-slate-500 outline-none transition-all duration-200 focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/25"
+                  className="w-full rounded-xl border py-3.5 pl-11 pr-4 outline-none transition-all duration-200"
+                  style={{
+                    background: "var(--color-surface-900)",
+                    borderColor: "rgba(138, 155, 176, 0.15)",
+                    color: "var(--color-cream)",
+                  }}
                   autoFocus
                   required
                 />
               </div>
-              <p className="mt-1.5 text-[11px] text-slate-500">
-                Only <span className="font-semibold text-slate-400">{ALLOWED_DOMAIN}</span> emails accepted
+              <p className="mt-1.5 text-[11px]" style={{ color: "var(--color-stone)" }}>
+                Only <span className="font-semibold" style={{ color: "var(--color-cream)" }}>{ALLOWED_DOMAIN}</span> emails accepted
               </p>
             </div>
 
             {/* Password input */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-300">
+              <label className="mb-2 block text-sm font-medium" style={{ color: "var(--color-cream)" }}>
                 Password
               </label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2" style={{ color: "var(--color-stone)" }} />
                 <input
                   id="login-password"
                   type={showPassword ? "text" : "password"}
@@ -268,14 +257,20 @@ export default function Login() {
                     setError("");
                   }}
                   placeholder={isSignup ? "Minimum 8 characters" : "Enter your password"}
-                  className="w-full rounded-xl border border-slate-700/50 bg-slate-900/80 py-3.5 pl-11 pr-12 text-white placeholder-slate-500 outline-none transition-all duration-200 focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/25"
+                  className="w-full rounded-xl border py-3.5 pl-11 pr-12 outline-none transition-all duration-200"
+                  style={{
+                    background: "var(--color-surface-900)",
+                    borderColor: "rgba(138, 155, 176, 0.15)",
+                    color: "var(--color-cream)",
+                  }}
                   required
                   minLength={isSignup ? 8 : undefined}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 transition-colors hover:text-slate-300"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
+                  style={{ color: "var(--color-stone)" }}
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
@@ -292,11 +287,11 @@ export default function Login() {
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <label className="mb-2 block text-sm font-medium text-slate-300">
+                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--color-cream)" }}>
                     Confirm Password
                   </label>
                   <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+                    <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2" style={{ color: "var(--color-stone)" }} />
                     <input
                       id="login-confirm-password"
                       type={showConfirmPassword ? "text" : "password"}
@@ -306,13 +301,19 @@ export default function Login() {
                         setError("");
                       }}
                       placeholder="Re-enter your password"
-                      className="w-full rounded-xl border border-slate-700/50 bg-slate-900/80 py-3.5 pl-11 pr-12 text-white placeholder-slate-500 outline-none transition-all duration-200 focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/25"
+                      className="w-full rounded-xl border py-3.5 pl-11 pr-12 outline-none transition-all duration-200"
+                      style={{
+                        background: "var(--color-surface-900)",
+                        borderColor: "rgba(138, 155, 176, 0.15)",
+                        color: "var(--color-cream)",
+                      }}
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword((v) => !v)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 transition-colors hover:text-slate-300"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
+                      style={{ color: "var(--color-stone)" }}
                       tabIndex={-1}
                     >
                       {showConfirmPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
@@ -326,13 +327,17 @@ export default function Login() {
             <AnimatePresence>
               {success && (
                 <motion.div
-                  initial={{ opacity: 0, y: -8, height: 0 }}
+                  initial={{ opacity: 0, y: -6, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: "auto" }}
-                  exit={{ opacity: 0, y: -8, height: 0 }}
-                  className="flex items-start gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2.5"
+                  exit={{ opacity: 0, y: -6, height: 0 }}
+                  className="flex items-start gap-2 rounded-lg border px-3 py-2.5"
+                  style={{
+                    borderColor: "rgba(34, 197, 94, 0.2)",
+                    background: "rgba(34, 197, 94, 0.08)",
+                  }}
                 >
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                  <p className="text-sm text-emerald-300">{success}</p>
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "#22c55e" }} />
+                  <p className="text-sm" style={{ color: "#86efac" }}>{success}</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -341,13 +346,17 @@ export default function Login() {
             <AnimatePresence>
               {error && (
                 <motion.div
-                  initial={{ opacity: 0, y: -8, height: 0 }}
+                  initial={{ opacity: 0, y: -6, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: "auto" }}
-                  exit={{ opacity: 0, y: -8, height: 0 }}
-                  className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5"
+                  exit={{ opacity: 0, y: -6, height: 0 }}
+                  className="flex items-start gap-2 rounded-lg border px-3 py-2.5"
+                  style={{
+                    borderColor: "rgba(239, 68, 68, 0.2)",
+                    background: "rgba(239, 68, 68, 0.08)",
+                  }}
                 >
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-                  <p className="text-sm text-red-300">{error}</p>
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "#ef4444" }} />
+                  <p className="text-sm" style={{ color: "#fca5a5" }}>{error}</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -364,7 +373,12 @@ export default function Login() {
                     type="button"
                     onClick={handleResendConfirmation}
                     disabled={resendLoading}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-neon-cyan/20 bg-neon-cyan/5 py-2.5 text-sm font-medium text-neon-cyan transition-all hover:border-neon-cyan/40 hover:bg-neon-cyan/10 disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-medium transition-all disabled:opacity-50"
+                    style={{
+                      color: "var(--color-flame)",
+                      borderColor: "rgba(232, 97, 45, 0.2)",
+                      background: "rgba(232, 97, 45, 0.06)",
+                    }}
                   >
                     {resendLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -383,7 +397,8 @@ export default function Login() {
               disabled={loading || !email.trim() || !password}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="gradient-border flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3.5 font-semibold text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-semibold text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ background: "var(--color-flame)" }}
             >
               {loading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -395,7 +410,7 @@ export default function Login() {
               )}
             </motion.button>
 
-            <p className="text-center text-xs text-slate-500">
+            <p className="text-center text-xs" style={{ color: "var(--color-stone)" }}>
               <ShieldCheck className="mb-0.5 mr-1 inline h-3 w-3" />
               Secured with domain-locked authentication
             </p>
@@ -405,12 +420,13 @@ export default function Login() {
               <button
                 type="button"
                 onClick={toggleAuthMode}
-                className="text-sm text-slate-400 transition-colors hover:text-neon-cyan"
+                className="text-sm transition-colors"
+                style={{ color: "var(--color-stone)" }}
               >
                 {isSignup ? (
-                  <>Already a user? <span className="font-semibold text-neon-cyan">Login</span></>
+                  <>Already a user? <span className="font-semibold" style={{ color: "var(--color-flame)" }}>Login</span></>
                 ) : (
-                  <>New here? <span className="font-semibold text-neon-cyan">Sign Up</span></>
+                  <>New here? <span className="font-semibold" style={{ color: "var(--color-flame)" }}>Sign Up</span></>
                 )}
               </button>
             </div>

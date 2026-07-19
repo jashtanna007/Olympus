@@ -12,61 +12,62 @@ const THROTTLE_MS = 2000; // Throttle event handlers to 2s intervals
  * Event listeners are throttled via requestAnimationFrame + timestamp check to prevent lag.
  */
 export function useInactivityTimeout() {
-  const { user, role, signOut } = useAuth();
-  const timerRef = useRef(null);
-  const lastActivityRef = useRef(Date.now());
-  const rafPendingRef = useRef(false);
+  // TEMP: auth disabled for dev — restore before launch
+  // const { user, role, signOut } = useAuth();
+  // const timerRef = useRef(null);
+  // const lastActivityRef = useRef(Date.now());
+  // const rafPendingRef = useRef(false);
 
-  // Bypass for admin and scorer roles — they should never be auto-logged out
-  const shouldBypass = role === "admin" || role === "scorer";
+  // // Bypass for admin and scorer roles — they should never be auto-logged out
+  // const shouldBypass = role === "admin" || role === "scorer";
 
-  const resetTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-    timerRef.current = setTimeout(() => {
-      signOut();
-    }, TIMEOUT_MS);
-  }, [signOut]);
+  // const resetTimer = useCallback(() => {
+  //   if (timerRef.current) {
+  //     clearTimeout(timerRef.current);
+  //   }
+  //   timerRef.current = setTimeout(() => {
+  //     signOut();
+  //   }, TIMEOUT_MS);
+  // }, [signOut]);
 
-  const handleActivity = useCallback(() => {
-    const now = Date.now();
-    // Throttle: only process if enough time has passed since last activity
-    if (now - lastActivityRef.current < THROTTLE_MS) return;
-    lastActivityRef.current = now;
+  // const handleActivity = useCallback(() => {
+  //   const now = Date.now();
+  //   // Throttle: only process if enough time has passed since last activity
+  //   if (now - lastActivityRef.current < THROTTLE_MS) return;
+  //   lastActivityRef.current = now;
 
-    // Use rAF to batch with paint cycle and prevent layout thrashing
-    if (rafPendingRef.current) return;
-    rafPendingRef.current = true;
+  //   // Use rAF to batch with paint cycle and prevent layout thrashing
+  //   if (rafPendingRef.current) return;
+  //   rafPendingRef.current = true;
 
-    requestAnimationFrame(() => {
-      rafPendingRef.current = false;
-      resetTimer();
-    });
-  }, [resetTimer]);
+  //   requestAnimationFrame(() => {
+  //     rafPendingRef.current = false;
+  //     resetTimer();
+  //   });
+  // }, [resetTimer]);
 
-  useEffect(() => {
-    // Don't set up listeners if no user or bypass applies
-    if (!user || shouldBypass) return;
+  // useEffect(() => {
+  //   // Don't set up listeners if no user or bypass applies
+  //   if (!user || shouldBypass) return;
 
-    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+  //   const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
 
-    // Start the initial timer
-    resetTimer();
+  //   // Start the initial timer
+  //   resetTimer();
 
-    // Attach throttled listeners (passive for scroll/touch perf)
-    events.forEach((event) => {
-      const opts = event === "scroll" || event === "touchstart" ? { passive: true } : undefined;
-      window.addEventListener(event, handleActivity, opts);
-    });
+  //   // Attach throttled listeners (passive for scroll/touch perf)
+  //   events.forEach((event) => {
+  //     const opts = event === "scroll" || event === "touchstart" ? { passive: true } : undefined;
+  //     window.addEventListener(event, handleActivity, opts);
+  //   });
 
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-      events.forEach((event) => {
-        window.removeEventListener(event, handleActivity);
-      });
-    };
-  }, [user, shouldBypass, handleActivity, resetTimer]);
+  //   return () => {
+  //     if (timerRef.current) {
+  //       clearTimeout(timerRef.current);
+  //     }
+  //     events.forEach((event) => {
+  //       window.removeEventListener(event, handleActivity);
+  //     });
+  //   };
+  // }, [user, shouldBypass, handleActivity, resetTimer]);
 }

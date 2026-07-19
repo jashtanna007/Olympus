@@ -4,9 +4,9 @@ import Navbar from "./Navbar";
 import { useInactivityTimeout } from "../../hooks/useInactivityTimeout";
 
 const pageVariants = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
-  exit: { opacity: 0, y: -20, transition: { duration: 0.25 } },
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, y: -12, transition: { duration: 0.2 } },
 };
 
 export default function GlobalLayout() {
@@ -16,10 +16,7 @@ export default function GlobalLayout() {
   useInactivityTimeout();
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950">
-      {/* Animated background grid */}
-      <div className="bg-grid" />
-
+    <div className="flex min-h-screen flex-col" style={{ background: "var(--color-navy)" }}>
       <Navbar />
 
       {/* Page content with AnimatePresence for route transitions */}

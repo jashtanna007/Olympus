@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import FranchiseSlider from "../components/home/FranchiseSlider";
 import SportsLeaderboard from "../components/home/SportsLeaderboard";
@@ -32,41 +32,37 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      {/* Ambient glow orbs */}
-      <motion.div
-        className="pointer-events-none absolute -right-60 top-20 h-[600px] w-[600px] rounded-full opacity-10 blur-[140px]"
-        style={{ background: "radial-gradient(circle, #00f0ff, transparent 70%)" }}
-        animate={{ opacity: [0.08, 0.15, 0.08] }}
-        transition={{ duration: 10, repeat: Infinity }}
+      {/* Torch stripe — signature diagonal accent */}
+      <div
+        className="torch-stripe"
+        style={{ top: "-80px", right: "10%", opacity: 0.7 }}
       />
-      <motion.div
-        className="pointer-events-none absolute -left-60 bottom-40 h-[500px] w-[500px] rounded-full opacity-10 blur-[120px]"
-        style={{ background: "radial-gradient(circle, #a855f7, transparent 70%)" }}
-        animate={{ opacity: [0.1, 0.18, 0.1] }}
-        transition={{ duration: 12, repeat: Infinity }}
+      <div
+        className="torch-stripe"
+        style={{ top: "200px", left: "-40px", opacity: 0.4, width: "80px" }}
       />
 
       <div className="relative z-10 mx-auto max-w-7xl space-y-10 px-0 py-8 sm:space-y-14 sm:py-12 lg:space-y-16">
-        {/* Hero — 3D Franchise Slider */}
+        {/* Hero — Franchise Slider */}
         <section className="text-center">
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.4 }}
             className="mb-4 sm:mb-6"
           >
-            <h2 className="font-display text-2xl font-bold tracking-wider text-white sm:text-3xl lg:text-4xl">
-              The <span className="text-glow-cyan text-neon-cyan">Arena</span> Awaits
+            <h2 className="font-display text-3xl tracking-wider sm:text-4xl lg:text-5xl" style={{ color: "var(--color-cream)" }}>
+              THE <span style={{ color: "var(--color-flame)" }}>OLYMPUS</span> ARENA
             </h2>
-            <p className="mt-2 text-sm text-slate-400 sm:text-base">
-              Choose your franchise. Dominate the tournament.
+            <p className="mt-2 text-sm sm:text-base" style={{ color: "var(--color-stone)" }}>
+              IIIT Vadodara Inter-College Sports Fest
             </p>
           </motion.div>
 
           <FranchiseSlider onFranchiseClick={handleFranchiseClick} />
         </section>
 
-        {/* Sports-wise Team Leaderboard */}
+        {/* Unified Leaderboard — Sport tabs + Overall */}
         <section>
           <SportsLeaderboard onTeamClick={handleTeamClick} />
         </section>
@@ -77,7 +73,8 @@ export default function Home() {
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="mb-5 px-4 text-center font-display text-xs font-semibold tracking-[0.3em] text-slate-500 sm:mb-6 sm:px-6 sm:text-sm"
+            className="mb-5 px-4 text-center font-display text-sm tracking-[0.2em] sm:mb-6 sm:px-6 sm:text-base"
+            style={{ color: "var(--color-stone)" }}
           >
             QUICK ACCESS
           </motion.h3>

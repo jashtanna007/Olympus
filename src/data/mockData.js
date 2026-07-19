@@ -295,6 +295,37 @@ export function getLeaderboardByPool(sportName) {
   return { poolA, poolB };
 }
 
+// ─── Helper: Get overall leaderboard aggregated across all sports ───
+export function getOverallLeaderboard() {
+  const allSportNames = sports.map((s) => s.name);
+
+  const poolA = franchises
+    .filter((f) => f.pool === "A")
+    .map((f) => {
+      const totalPoints = allSportNames.reduce(
+        (sum, sport) => sum + (f.sportPoints[sport] ?? 0),
+        0
+      );
+      return { ...f, points: totalPoints };
+    })
+    .sort((a, b) => b.points - a.points)
+    .map((f, i) => ({ ...f, rank: i + 1 }));
+
+  const poolB = franchises
+    .filter((f) => f.pool === "B")
+    .map((f) => {
+      const totalPoints = allSportNames.reduce(
+        (sum, sport) => sum + (f.sportPoints[sport] ?? 0),
+        0
+      );
+      return { ...f, points: totalPoints };
+    })
+    .sort((a, b) => b.points - a.points)
+    .map((f, i) => ({ ...f, rank: i + 1 }));
+
+  return { poolA, poolB };
+}
+
 // ─── Player Stats (for Drawer) ───
 export const playerStats = {
   name: "Guest Player",
