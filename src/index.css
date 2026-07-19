@@ -268,3 +268,37 @@ body {
     padding-bottom: 0;
   }
 }
+
+#root {
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  background: #01050d;
+  color: #f8fafc;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.font-display {
+  font-family: "Bebas Neue", "Arial Narrow", Impact, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

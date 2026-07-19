@@ -1,314 +1,241 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useMotionValue } from "framer-motion";
-import { ChevronLeft, ChevronRight, Crown, Eye } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import FranchiseEmblem from "../common/FranchiseEmblem";
 import { franchises } from "../../data/mockData";
 
 export default function FranchiseSlider({ onFranchiseClick }) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [direction, setDirection] = useState(0);
-  const containerRef = useRef(null);
-  const dragX = useMotionValue(0);
+  const initialIndex = Math.min(2, Math.max(franchises.length - 1, 0));
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
-  const count = franchises.length;
-
-  const goTo = useCallback(
-    (newIndex, dir) => {
-      const wrapped = ((newIndex % count) + count) % count;
-      setDirection(dir);
-      setActiveIndex(wrapped);
-    },
-    [count]
-  );
-
-  const goNext = useCallback(() => goTo(activeIndex + 1, 1), [activeIndex, goTo]);
-  const goPrev = useCallback(() => goTo(activeIndex - 1, -1), [activeIndex, goTo]);
+  const total = franchises.length;
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "ArrowRight") goNext();
-      if (e.key === "ArrowLeft") goPrev();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [goNext, goPrev]);
+    const updateLayout = () => setIsMobile(window.innerWidth < 640);
 
-  const handleDragEnd = useCallback(
-    (_, info) => {
-      const threshold = 50;
-      if (info.offset.x < -threshold) goNext();
-      else if (info.offset.x > threshold) goPrev();
+    updateLayout();
+    window.addEventListener("resize", updateLayout);
+
+    return () => window.removeEventListener("resize", updateLayout);
+  }, []);
+
+  const goTo = useCallback(
+    (index) => {
+      setActiveIndex(((index % total) + total) % total);
     },
-    [goNext, goPrev]
+    [total],
   );
 
-  const getOffset = (index) => {
-    let diff = index - activeIndex;
-    if (diff > count / 2) diff -= count;
-    if (diff < -count / 2) diff += count;
-    return diff;
+  const goPrevious = useCallback(() => {
+    goTo(activeIndex - 1);
+  }, [activeIndex, goTo]);
+
+  const goNext = useCallback(() => {
+    goTo(activeIndex + 1);
+  }, [activeIndex, goTo]);
+
+  useEffect(() => {
+    if (isPaused || total <= 1) return undefined;
+
+    const timer = window.setInterval(goNext, 5200);
+
+    return () => window.clearInterval(timer);
+  }, [goNext, isPaused, total]);
+
+  useEffect(() => {
+    const handleKeyboard = (event) => {
+      if (event.key === "ArrowLeft") goPrevious();
+      if (event.key === "ArrowRight") goNext();
+    };
+
+    window.addEventListener("keydown", handleKeyboard);
+
+    return () => window.removeEventListener("keydown", handleKeyboard);
+  }, [goNext, goPrevious]);
+
+  const visibleCards = useMemo(() => {
+    return franchises
+      .map((franchise, index) => {
+        let offset = index - activeIndex;
+
+        if (offset > total / 2) offset -= total;
+        if (offset < -total / 2) offset += total;
+
+        return {
+          franchise,
+          index,
+          offset,
+        };
+      })
+      .filter(({ offset }) => Math.abs(offset) <= (isMobile ? 1 : 2));
+  }, [activeIndex, isMobile, total]);
+
+  const handleCardClick = (index, offset, franchise) => {
+    if (offset === 0) {
+      onFranchiseClick?.(franchise);
+      return;
+    }
+
+    goTo(index);
   };
 
-  const visibleCards = franchises
-    .map((franchise, index) => ({ franchise, index, offset: getOffset(index) }))
-    .filter(({ offset }) => Math.abs(offset) <= 3);
-
   return (
-    <div className="relative mx-auto w-full max-w-6xl select-none px-4 py-2">
-      {/* Carousel Container */}
+    <div
+      className="relative"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-44 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500/15 blur-[70px] sm:h-56 sm:w-[460px]" />
+
       <div
-        ref={containerRef}
-        className="relative flex items-center justify-center overflow-hidden"
-        style={{ height: "440px", perspective: "1200px" }}
+        className="relative mx-auto h-[235px] max-w-6xl touch-pan-y sm:h-[295px]"
+        onTouchStart={(event) => {
+          event.currentTarget.dataset.touchStartX =
+            event.touches[0].clientX.toString();
+        }}
+        onTouchEnd={(event) => {
+          const startX = Number(event.currentTarget.dataset.touchStartX || 0);
+          const endX = event.changedTouches[0].clientX;
+          const distance = endX - startX;
+
+          if (distance > 45) goPrevious();
+          if (distance < -45) goNext();
+        }}
       >
-        {/* Glow behind active card */}
-        <div
-          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{
-            width: "280px",
-            height: "400px",
-            background: `radial-gradient(ellipse, ${franchises[activeIndex].color}18 0%, transparent 70%)`,
-            transition: "background 0.5s ease",
-          }}
-        />
+        {visibleCards.map(({ franchise, index, offset }) => {
+          const isActive = offset === 0;
+          const distance = Math.abs(offset);
+          const spacing = isMobile ? 122 : 205;
 
-        {/* Drag area */}
-        <motion.div
-          className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing"
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.15}
-          onDragEnd={handleDragEnd}
-          style={{ x: dragX }}
-        />
-
-        {/* Cards */}
-        <AnimatePresence initial={false}>
-          {visibleCards.map(({ franchise, index, offset }) => (
-            <SliderCard
+          return (
+            <motion.button
               key={franchise.id}
-              franchise={franchise}
-              offset={offset}
-              isActive={offset === 0}
-              onClick={() => {
-                if (offset === 0) onFranchiseClick(franchise);
-                else goTo(index, offset > 0 ? 1 : -1);
+              type="button"
+              initial={false}
+              animate={{
+                x: offset * spacing,
+                y: distance * (isMobile ? 9 : 13),
+                scale: isActive
+                  ? 1
+                  : distance === 1
+                    ? isMobile
+                      ? 0.83
+                      : 0.88
+                    : 0.72,
+                rotateY: offset * -7,
+                opacity: isActive ? 1 : distance === 1 ? 0.92 : 0.6,
+                zIndex: 20 - distance,
               }}
-            />
-          ))}
-        </AnimatePresence>
+              transition={{
+                type: "spring",
+                stiffness: 240,
+                damping: 28,
+                mass: 0.8,
+              }}
+              onClick={() => handleCardClick(index, offset, franchise)}
+              className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center overflow-hidden rounded-2xl border bg-[#030914]/90 px-3 text-center outline-none backdrop-blur-xl focus-visible:ring-2 focus-visible:ring-sky-400"
+              style={{
+                width: isMobile ? 145 : 205,
+                height: isMobile ? 205 : 262,
+                borderColor: isActive
+                  ? franchise.color
+                  : `${franchise.color}55`,
+                boxShadow: isActive
+                  ? `0 0 0 1px ${franchise.color}44, 0 0 34px ${franchise.color}70, inset 0 0 45px ${franchise.color}18`
+                  : `0 16px 38px rgba(0,0,0,0.48), inset 0 0 28px ${franchise.color}10`,
+              }}
+              aria-label={
+                isActive
+                  ? `Open ${franchise.name}`
+                  : `Select ${franchise.name}`
+              }
+            >
+              <span
+                className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                style={{
+                  background: `linear-gradient(90deg, transparent, ${franchise.color}, transparent)`,
+                }}
+              />
+
+              <span
+                className="pointer-events-none absolute inset-0 opacity-35"
+                style={{
+                  background: `radial-gradient(circle at 50% 35%, ${franchise.color}45, transparent 52%)`,
+                }}
+              />
+
+              <FranchiseEmblem
+                franchise={franchise}
+                size={isMobile ? "lg" : "xl"}
+                active={isActive}
+                className="relative"
+              />
+
+              <span
+                className="relative mt-4 font-display text-[17px] uppercase leading-[0.95] tracking-wide sm:text-[23px]"
+                style={{
+                  color: isActive ? "#ffffff" : franchise.color,
+                }}
+              >
+                {franchise.name}
+              </span>
+
+              {isActive && (
+                <>
+                  <span
+                    className="relative mt-3 h-px w-14"
+                    style={{
+                      background: `linear-gradient(90deg, transparent, ${franchise.color}, transparent)`,
+                    }}
+                  />
+
+                  <span className="relative mt-3 text-[8px] font-black uppercase tracking-[0.17em] text-slate-400 sm:text-[10px]">
+                    Pool {franchise.pool}
+                    <span className="mx-2 text-slate-700">•</span>
+                    Rank #{franchise.overallRank}
+                  </span>
+                </>
+              )}
+            </motion.button>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={goPrevious}
+          className="absolute left-0 top-1/2 z-30 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-sky-400/25 bg-[#020711]/75 text-sky-400 backdrop-blur-xl transition hover:border-sky-400/60 hover:bg-sky-400/10 lg:flex"
+          aria-label="Previous franchise"
+        >
+          <ChevronLeft size={22} />
+        </button>
+
+        <button
+          type="button"
+          onClick={goNext}
+          className="absolute right-0 top-1/2 z-30 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-sky-400/25 bg-[#020711]/75 text-sky-400 backdrop-blur-xl transition hover:border-sky-400/60 hover:bg-sky-400/10 lg:flex"
+          aria-label="Next franchise"
+        >
+          <ChevronRight size={22} />
+        </button>
       </div>
 
-      {/* Chevron Controls */}
-      <motion.button
-        onClick={goPrev}
-        whileHover={{ scale: 1.12 }}
-        whileTap={{ scale: 0.9 }}
-        className="absolute left-2 top-1/2 z-30 -translate-y-1/2 rounded-full p-2.5 sm:left-4 sm:p-3"
-        style={{
-          background: "rgba(20, 35, 52, 0.7)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          color: "var(--color-text-secondary)",
-        }}
-        aria-label="Previous franchise"
-      >
-        <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
-      </motion.button>
-      <motion.button
-        onClick={goNext}
-        whileHover={{ scale: 1.12 }}
-        whileTap={{ scale: 0.9 }}
-        className="absolute right-2 top-1/2 z-30 -translate-y-1/2 rounded-full p-2.5 sm:right-4 sm:p-3"
-        style={{
-          background: "rgba(20, 35, 52, 0.7)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          color: "var(--color-text-secondary)",
-        }}
-        aria-label="Next franchise"
-      >
-        <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
-      </motion.button>
-
-      {/* Swipe hint */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
-        className="mt-3 flex items-center justify-center gap-2"
-      >
-        <span className="text-base">👆</span>
-        <span className="text-[11px] font-medium tracking-[0.15em]" style={{ color: "var(--color-text-secondary)" }}>
-          SWIPE TO EXPLORE
-        </span>
-      </motion.div>
-
-      {/* Dot Indicators */}
-      <div className="mt-3 flex items-center justify-center gap-2">
-        {franchises.map((f, i) => (
-          <motion.button
-            key={f.id}
-            onClick={() => goTo(i, i > activeIndex ? 1 : -1)}
-            className="relative h-2 rounded-full transition-all duration-300"
-            animate={{
-              width: i === activeIndex ? 28 : 8,
-              backgroundColor: i === activeIndex ? "var(--color-accent-blue)" : "rgba(100, 116, 139, 0.3)",
-            }}
-            whileHover={{ scale: 1.3 }}
-            aria-label={`Go to ${f.name}`}
+      <div className="-mt-1 flex items-center justify-center gap-2">
+        {franchises.map((franchise, index) => (
+          <button
+            key={franchise.id}
+            type="button"
+            onClick={() => goTo(index)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${
+              index === activeIndex
+                ? "w-6 bg-sky-400 shadow-[0_0_8px_#38bdf8]"
+                : "w-1.5 bg-slate-600 hover:bg-slate-400"
+            }`}
+            aria-label={`Show ${franchise.name}`}
           />
         ))}
       </div>
     </div>
-  );
-}
-
-// ─── Slider Card ───
-function SliderCard({ franchise, offset, isActive, onClick }) {
-  const absOffset = Math.abs(offset);
-
-  const translateX = offset * 200;
-  const translateZ = isActive ? 0 : -(absOffset * 90);
-  const rotateY = offset * -10;
-  const scale = isActive ? 1 : Math.max(0.55, 1 - absOffset * 0.18);
-  const opacity = isActive ? 1 : Math.max(0.2, 1 - absOffset * 0.35);
-  const zIndex = 10 - absOffset;
-  const blur = isActive ? 0 : Math.min(absOffset * 2, 4);
-
-  return (
-    <motion.div
-      className="absolute"
-      style={{ zIndex, filter: blur > 0 ? `blur(${blur}px)` : "none" }}
-      initial={false}
-      animate={{
-        x: translateX,
-        z: translateZ,
-        rotateY,
-        scale,
-        opacity,
-      }}
-      transition={{
-        type: "spring",
-        stiffness: 260,
-        damping: 28,
-        mass: 0.8,
-      }}
-    >
-      <motion.button
-        onClick={onClick}
-        whileHover={isActive ? { scale: 1.03, y: -4 } : {}}
-        whileTap={{ scale: 0.97 }}
-        className="relative flex h-[360px] w-[230px] flex-col items-center justify-center overflow-hidden rounded-[22px] cursor-pointer transition-all duration-300 sm:h-[400px] sm:w-[260px]"
-        style={{
-          background: isActive
-            ? `linear-gradient(170deg, ${franchise.color}12, rgba(20, 35, 52, 0.75) 50%, ${franchise.color}08)`
-            : "rgba(20, 35, 52, 0.6)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          border: isActive
-            ? `2px solid ${franchise.color}55`
-            : "1px solid rgba(255, 255, 255, 0.06)",
-          boxShadow: isActive
-            ? `0 0 30px ${franchise.color}20, 0 0 80px ${franchise.color}08, 0 8px 32px rgba(0,0,0,0.4)`
-            : "0 4px 16px rgba(0, 0, 0, 0.3)",
-        }}
-      >
-        {/* Team Leader Image */}
-        <div className="relative mb-3 h-20 w-20 sm:h-24 sm:w-24">
-          <AnimatePresence mode="wait">
-            {isActive && (
-              <motion.div
-                key={`leader-${franchise.id}`}
-                initial={{ opacity: 0, y: -20, scale: 0.85 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -15, scale: 0.9 }}
-                transition={{ type: "spring", stiffness: 200, damping: 18, delay: 0.1 }}
-                className="absolute inset-0 overflow-hidden rounded-2xl ring-2"
-                style={{
-                  ringColor: `${franchise.color}44`,
-                  background: `linear-gradient(135deg, ${franchise.color}20, ${franchise.color}08)`,
-                }}
-              >
-                <img
-                  src={franchise.leader.image}
-                  alt={franchise.leader.name}
-                  className="h-full w-full object-cover"
-                  loading="eager"
-                />
-                <div
-                  className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full"
-                  style={{ background: franchise.color }}
-                >
-                  <Crown className="h-3.5 w-3.5 text-white" />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {!isActive && (
-            <div
-              className="flex h-full w-full items-center justify-center rounded-2xl text-4xl sm:text-5xl"
-              style={{ background: `${franchise.color}10` }}
-            >
-              {franchise.emoji}
-            </div>
-          )}
-        </div>
-
-        {/* Emoji (active only) */}
-        {isActive && (
-          <motion.span
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="mb-1 text-2xl"
-          >
-            {franchise.emoji}
-          </motion.span>
-        )}
-
-        {/* Team name */}
-        <h3
-          className={`px-4 text-center font-display tracking-wider ${isActive ? "text-lg sm:text-xl" : "text-sm sm:text-base"}`}
-          style={{ color: isActive ? "var(--color-text-primary)" : "var(--color-text-secondary)" }}
-        >
-          {franchise.name}
-        </h3>
-
-        {/* Active state info */}
-        <AnimatePresence>
-          {isActive && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ delay: 0.15, duration: 0.25 }}
-              className="mt-3 flex flex-col items-center gap-2.5 px-4"
-            >
-              <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider" style={{ color: "var(--color-text-secondary)" }}>
-                <span>POOL {franchise.pool}</span>
-                <span>•</span>
-                <span>RANK #{franchise.overallRank}</span>
-              </div>
-
-              {/* View Team button */}
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold text-white"
-                style={{
-                  background: "linear-gradient(135deg, var(--color-accent-blue), #2563eb)",
-                  boxShadow: "0 0 16px rgba(59, 130, 246, 0.3)",
-                }}
-              >
-                <Eye className="h-3.5 w-3.5" />
-                VIEW TEAM
-                <ChevronRight className="h-3.5 w-3.5" />
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.button>
-    </motion.div>
   );
 }

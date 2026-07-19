@@ -1,78 +1,53 @@
-import { motion } from "framer-motion";
-import { Home, Swords, Trophy, User } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import {
+  CalendarDays,
+  Home,
+  Shield,
+  Trophy,
+  UserRound,
+} from "lucide-react";
+import { NavLink } from "react-router-dom";
 
 const tabs = [
-  { id: "home", label: "Home", icon: Home, path: "/" },
-  { id: "matches", label: "Matches", icon: Swords, path: "/" },
-  { id: "leaderboard", label: "Standings", icon: Trophy, path: "/" },
-  { id: "profile", label: "Profile", icon: User, path: "/" },
+  { label: "Home", path: "/", icon: Home, end: true },
+  { label: "Franchises", path: "/franchises", icon: Shield },
+  { label: "Matches", path: "/matches", icon: CalendarDays },
+  { label: "Leaderboard", path: "/leaderboard", icon: Trophy },
+  { label: "Profile", path: "/profile", icon: UserRound },
 ];
 
 export default function BottomNav() {
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  // For now, all tabs go to "/" since we only have one page active
-  const activeTab = "home";
-
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-40 md:hidden"
-      style={{
-        background: "rgba(7, 19, 33, 0.88)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        borderTop: "1px solid rgba(255, 255, 255, 0.06)",
-      }}
-    >
-      <div className="mx-auto flex h-[72px] max-w-lg items-center justify-around px-2">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = tab.id === activeTab;
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#020711]/95 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl md:hidden">
+      <div className="mx-auto grid max-w-lg grid-cols-5">
+        {tabs.map(({ label, path, icon: Icon, end }) => (
+          <NavLink
+            key={path}
+            to={path}
+            end={end}
+            className={({ isActive }) =>
+              `relative flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[7px] font-bold uppercase tracking-tight transition ${
+                isActive ? "text-sky-400" : "text-slate-500"
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <span className="absolute inset-x-3 top-0 h-px bg-sky-400 shadow-[0_0_10px_#38bdf8]" />
+                )}
 
-          return (
-            <motion.button
-              key={tab.id}
-              onClick={() => navigate(tab.path)}
-              whileTap={{ scale: 0.88 }}
-              className="relative flex flex-col items-center gap-1 px-3 py-1.5"
-            >
-              {/* Active glow indicator */}
-              {isActive && (
-                <motion.div
-                  layoutId="bottomnav-indicator"
-                  className="absolute -top-1 h-[3px] w-8 rounded-full"
-                  style={{
-                    background: "var(--color-accent-blue)",
-                    boxShadow: "0 0 12px rgba(59, 130, 246, 0.6), 0 0 30px rgba(59, 130, 246, 0.2)",
-                  }}
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                <Icon
+                  size={19}
+                  strokeWidth={isActive ? 2.5 : 1.8}
+                  className={isActive ? "drop-shadow-[0_0_8px_#38bdf8]" : ""}
                 />
-              )}
 
-              <Icon
-                className="h-5 w-5 transition-colors duration-200"
-                style={{
-                  color: isActive ? "var(--color-accent-blue)" : "var(--color-text-secondary)",
-                }}
-                strokeWidth={isActive ? 2.2 : 1.8}
-              />
-              <span
-                className="text-[10px] font-medium tracking-wide transition-colors duration-200"
-                style={{
-                  color: isActive ? "var(--color-accent-blue)" : "var(--color-text-secondary)",
-                }}
-              >
-                {tab.label}
-              </span>
-            </motion.button>
-          );
-        })}
+                <span className="max-w-full truncate">{label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
       </div>
-
-      {/* Safe area for iOS home indicator */}
-      <div className="h-[env(safe-area-inset-bottom)]" />
     </nav>
   );
 }
