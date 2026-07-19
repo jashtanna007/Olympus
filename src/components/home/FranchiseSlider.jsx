@@ -1,16 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useMotionValue } from "framer-motion";
-import { ChevronLeft, ChevronRight, Crown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Crown, Eye } from "lucide-react";
 import { franchises } from "../../data/mockData";
 
-/**
- * FranchiseSlider — 3D Cover Flow / Story-style carousel
- *
- * - Active center card: full scale, full opacity, franchise color accent
- * - Adjacent cards: scaled down, dimmed, pushed back in z
- * - Swipeable/draggable on mobile, chevron buttons on desktop
- * - Team leader photo animates in when card becomes active
- */
 export default function FranchiseSlider({ onFranchiseClick }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [direction, setDirection] = useState(0);
@@ -31,7 +23,6 @@ export default function FranchiseSlider({ onFranchiseClick }) {
   const goNext = useCallback(() => goTo(activeIndex + 1, 1), [activeIndex, goTo]);
   const goPrev = useCallback(() => goTo(activeIndex - 1, -1), [activeIndex, goTo]);
 
-  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "ArrowRight") goNext();
@@ -41,20 +32,15 @@ export default function FranchiseSlider({ onFranchiseClick }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [goNext, goPrev]);
 
-  // Drag end handler
   const handleDragEnd = useCallback(
     (_, info) => {
       const threshold = 50;
-      if (info.offset.x < -threshold) {
-        goNext();
-      } else if (info.offset.x > threshold) {
-        goPrev();
-      }
+      if (info.offset.x < -threshold) goNext();
+      else if (info.offset.x > threshold) goPrev();
     },
     [goNext, goPrev]
   );
 
-  // Get position offset from active (circular)
   const getOffset = (index) => {
     let diff = index - activeIndex;
     if (diff > count / 2) diff -= count;
@@ -62,19 +48,29 @@ export default function FranchiseSlider({ onFranchiseClick }) {
     return diff;
   };
 
-  // Only show cards within visible range (-3 to +3)
   const visibleCards = franchises
     .map((franchise, index) => ({ franchise, index, offset: getOffset(index) }))
     .filter(({ offset }) => Math.abs(offset) <= 3);
 
   return (
-    <div className="relative mx-auto w-full max-w-5xl select-none px-4 py-2">
+    <div className="relative mx-auto w-full max-w-6xl select-none px-4 py-2">
       {/* Carousel Container */}
       <div
         ref={containerRef}
         className="relative flex items-center justify-center overflow-hidden"
-        style={{ height: "420px", perspective: "1200px" }}
+        style={{ height: "440px", perspective: "1200px" }}
       >
+        {/* Glow behind active card */}
+        <div
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+          style={{
+            width: "280px",
+            height: "400px",
+            background: `radial-gradient(ellipse, ${franchises[activeIndex].color}18 0%, transparent 70%)`,
+            transition: "background 0.5s ease",
+          }}
+        />
+
         {/* Drag area */}
         <motion.div
           className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing"
@@ -94,11 +90,8 @@ export default function FranchiseSlider({ onFranchiseClick }) {
               offset={offset}
               isActive={offset === 0}
               onClick={() => {
-                if (offset === 0) {
-                  onFranchiseClick(franchise);
-                } else {
-                  goTo(index, offset > 0 ? 1 : -1);
-                }
+                if (offset === 0) onFranchiseClick(franchise);
+                else goTo(index, offset > 0 ? 1 : -1);
               }}
             />
           ))}
@@ -110,11 +103,12 @@ export default function FranchiseSlider({ onFranchiseClick }) {
         onClick={goPrev}
         whileHover={{ scale: 1.12 }}
         whileTap={{ scale: 0.9 }}
-        className="absolute left-1 top-1/2 z-30 -translate-y-1/2 rounded-full border p-2.5 transition-colors hover:text-[var(--color-cream)] sm:left-2 sm:p-3"
+        className="absolute left-2 top-1/2 z-30 -translate-y-1/2 rounded-full p-2.5 sm:left-4 sm:p-3"
         style={{
-          background: "var(--color-charcoal)",
-          borderColor: "rgba(138, 155, 176, 0.2)",
-          color: "var(--color-stone)",
+          background: "rgba(20, 35, 52, 0.7)",
+          backdropFilter: "blur(12px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          color: "var(--color-text-secondary)",
         }}
         aria-label="Previous franchise"
       >
@@ -124,19 +118,33 @@ export default function FranchiseSlider({ onFranchiseClick }) {
         onClick={goNext}
         whileHover={{ scale: 1.12 }}
         whileTap={{ scale: 0.9 }}
-        className="absolute right-1 top-1/2 z-30 -translate-y-1/2 rounded-full border p-2.5 transition-colors hover:text-[var(--color-cream)] sm:right-2 sm:p-3"
+        className="absolute right-2 top-1/2 z-30 -translate-y-1/2 rounded-full p-2.5 sm:right-4 sm:p-3"
         style={{
-          background: "var(--color-charcoal)",
-          borderColor: "rgba(138, 155, 176, 0.2)",
-          color: "var(--color-stone)",
+          background: "rgba(20, 35, 52, 0.7)",
+          backdropFilter: "blur(12px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          color: "var(--color-text-secondary)",
         }}
         aria-label="Next franchise"
       >
         <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
       </motion.button>
 
+      {/* Swipe hint */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1 }}
+        className="mt-3 flex items-center justify-center gap-2"
+      >
+        <span className="text-base">👆</span>
+        <span className="text-[11px] font-medium tracking-[0.15em]" style={{ color: "var(--color-text-secondary)" }}>
+          SWIPE TO EXPLORE
+        </span>
+      </motion.div>
+
       {/* Dot Indicators */}
-      <div className="mt-4 flex items-center justify-center gap-2">
+      <div className="mt-3 flex items-center justify-center gap-2">
         {franchises.map((f, i) => (
           <motion.button
             key={f.id}
@@ -144,45 +152,33 @@ export default function FranchiseSlider({ onFranchiseClick }) {
             className="relative h-2 rounded-full transition-all duration-300"
             animate={{
               width: i === activeIndex ? 28 : 8,
-              backgroundColor: i === activeIndex ? f.color : "rgba(138, 155, 176, 0.3)",
+              backgroundColor: i === activeIndex ? "var(--color-accent-blue)" : "rgba(100, 116, 139, 0.3)",
             }}
             whileHover={{ scale: 1.3 }}
             aria-label={`Go to ${f.name}`}
           />
         ))}
       </div>
-
-      {/* Active franchise name */}
-      <motion.div
-        key={activeIndex}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mt-3 text-center"
-      >
-        <p className="font-display text-xs tracking-[0.25em]" style={{ color: "var(--color-stone)" }}>
-          {franchises[activeIndex].pool === "A" ? "POOL A" : "POOL B"} • RANK #{franchises[activeIndex].overallRank}
-        </p>
-      </motion.div>
     </div>
   );
 }
 
-// ─── Individual Slider Card ───
+// ─── Slider Card ───
 function SliderCard({ franchise, offset, isActive, onClick }) {
   const absOffset = Math.abs(offset);
 
-  // 3D positioning
-  const translateX = offset * 220;
-  const translateZ = isActive ? 0 : -(absOffset * 80);
-  const rotateY = offset * -8;
-  const scale = isActive ? 1 : Math.max(0.6, 1 - absOffset * 0.15);
-  const opacity = isActive ? 1 : Math.max(0.25, 1 - absOffset * 0.3);
+  const translateX = offset * 200;
+  const translateZ = isActive ? 0 : -(absOffset * 90);
+  const rotateY = offset * -10;
+  const scale = isActive ? 1 : Math.max(0.55, 1 - absOffset * 0.18);
+  const opacity = isActive ? 1 : Math.max(0.2, 1 - absOffset * 0.35);
   const zIndex = 10 - absOffset;
+  const blur = isActive ? 0 : Math.min(absOffset * 2, 4);
 
   return (
     <motion.div
       className="absolute"
-      style={{ zIndex }}
+      style={{ zIndex, filter: blur > 0 ? `blur(${blur}px)` : "none" }}
       initial={false}
       animate={{
         x: translateX,
@@ -200,27 +196,25 @@ function SliderCard({ franchise, offset, isActive, onClick }) {
     >
       <motion.button
         onClick={onClick}
-        whileHover={isActive ? { scale: 1.03 } : {}}
+        whileHover={isActive ? { scale: 1.03, y: -4 } : {}}
         whileTap={{ scale: 0.97 }}
-        className="relative flex h-[340px] w-[240px] flex-col items-center overflow-hidden rounded-2xl border-2 transition-all duration-200 cursor-pointer sm:h-[370px] sm:w-[260px]"
+        className="relative flex h-[360px] w-[230px] flex-col items-center justify-center overflow-hidden rounded-[22px] cursor-pointer transition-all duration-300 sm:h-[400px] sm:w-[260px]"
         style={{
           background: isActive
-            ? `linear-gradient(165deg, ${franchise.color}15, var(--color-charcoal) 60%)`
-            : "var(--color-charcoal)",
-          borderColor: isActive ? `${franchise.color}55` : "rgba(138, 155, 176, 0.1)",
+            ? `linear-gradient(170deg, ${franchise.color}12, rgba(20, 35, 52, 0.75) 50%, ${franchise.color}08)`
+            : "rgba(20, 35, 52, 0.6)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          border: isActive
+            ? `2px solid ${franchise.color}55`
+            : "1px solid rgba(255, 255, 255, 0.06)",
           boxShadow: isActive
-            ? `0 8px 32px ${franchise.color}20`
-            : "var(--shadow-card)",
+            ? `0 0 30px ${franchise.color}20, 0 0 80px ${franchise.color}08, 0 8px 32px rgba(0,0,0,0.4)`
+            : "0 4px 16px rgba(0, 0, 0, 0.3)",
         }}
       >
-        {/* Franchise color accent stripe (left edge) */}
-        <div
-          className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
-          style={{ background: franchise.color, opacity: isActive ? 1 : 0.3 }}
-        />
-
-        {/* Team Leader Image (animated on active) */}
-        <div className="relative mt-6 mb-3 h-20 w-20 sm:h-24 sm:w-24">
+        {/* Team Leader Image */}
+        <div className="relative mb-3 h-20 w-20 sm:h-24 sm:w-24">
           <AnimatePresence mode="wait">
             {isActive && (
               <motion.div
@@ -228,12 +222,7 @@ function SliderCard({ franchise, offset, isActive, onClick }) {
                 initial={{ opacity: 0, y: -20, scale: 0.85 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -15, scale: 0.9 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 200,
-                  damping: 18,
-                  delay: 0.1,
-                }}
+                transition={{ type: "spring", stiffness: 200, damping: 18, delay: 0.1 }}
                 className="absolute inset-0 overflow-hidden rounded-2xl ring-2"
                 style={{
                   ringColor: `${franchise.color}44`,
@@ -246,7 +235,6 @@ function SliderCard({ franchise, offset, isActive, onClick }) {
                   className="h-full w-full object-cover"
                   loading="eager"
                 />
-                {/* Crown badge */}
                 <div
                   className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full"
                   style={{ background: franchise.color }}
@@ -257,20 +245,17 @@ function SliderCard({ franchise, offset, isActive, onClick }) {
             )}
           </AnimatePresence>
 
-          {/* Fallback emoji when not active */}
           {!isActive && (
             <div
               className="flex h-full w-full items-center justify-center rounded-2xl text-4xl sm:text-5xl"
-              style={{
-                background: `${franchise.color}10`,
-              }}
+              style={{ background: `${franchise.color}10` }}
             >
               {franchise.emoji}
             </div>
           )}
         </div>
 
-        {/* Franchise emoji (visible below leader on active) */}
+        {/* Emoji (active only) */}
         {isActive && (
           <motion.span
             initial={{ opacity: 0, scale: 0.5 }}
@@ -283,16 +268,14 @@ function SliderCard({ franchise, offset, isActive, onClick }) {
         )}
 
         {/* Team name */}
-        <motion.h3
-          className={`px-4 text-center font-display tracking-wider ${
-            isActive ? "text-lg sm:text-xl" : "text-sm sm:text-base"
-          }`}
-          style={{ color: isActive ? "var(--color-cream)" : "var(--color-stone)" }}
+        <h3
+          className={`px-4 text-center font-display tracking-wider ${isActive ? "text-lg sm:text-xl" : "text-sm sm:text-base"}`}
+          style={{ color: isActive ? "var(--color-text-primary)" : "var(--color-text-secondary)" }}
         >
           {franchise.name}
-        </motion.h3>
+        </h3>
 
-        {/* Active state: additional info */}
+        {/* Active state info */}
         <AnimatePresence>
           {isActive && (
             <motion.div
@@ -302,42 +285,26 @@ function SliderCard({ franchise, offset, isActive, onClick }) {
               transition={{ delay: 0.15, duration: 0.25 }}
               className="mt-3 flex flex-col items-center gap-2.5 px-4"
             >
-              {/* Leader name */}
-              <div className="flex items-center gap-1.5">
-                <Crown className="h-3 w-3" style={{ color: "var(--color-gold)" }} />
-                <span className="text-xs font-medium" style={{ color: "var(--color-stone)" }}>
-                  {franchise.leader.name}
-                </span>
+              <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider" style={{ color: "var(--color-text-secondary)" }}>
+                <span>POOL {franchise.pool}</span>
+                <span>•</span>
+                <span>RANK #{franchise.overallRank}</span>
               </div>
 
-              {/* Pool & Rank badges */}
-              <div className="flex items-center gap-2">
-                <span
-                  className="rounded-full px-3 py-1 text-[10px] font-bold tracking-wider"
-                  style={{
-                    color: franchise.color,
-                    background: `${franchise.color}12`,
-                    border: `1px solid ${franchise.color}28`,
-                  }}
-                >
-                  POOL {franchise.pool}
-                </span>
-                <span
-                  className="rounded-full px-3 py-1 text-[10px] font-bold tracking-wider"
-                  style={{
-                    color: franchise.color,
-                    background: `${franchise.color}0A`,
-                    border: `1px solid ${franchise.color}1A`,
-                  }}
-                >
-                  RANK #{franchise.overallRank}
-                </span>
-              </div>
-
-              {/* Tap hint */}
-              <p className="mt-1 text-[10px] tracking-widest" style={{ color: "var(--color-stone)", opacity: 0.6 }}>
-                TAP TO EXPLORE
-              </p>
+              {/* View Team button */}
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold text-white"
+                style={{
+                  background: "linear-gradient(135deg, var(--color-accent-blue), #2563eb)",
+                  boxShadow: "0 0 16px rgba(59, 130, 246, 0.3)",
+                }}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                VIEW TEAM
+                <ChevronRight className="h-3.5 w-3.5" />
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

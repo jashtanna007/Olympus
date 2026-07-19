@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "./Navbar";
+import BottomNav from "./BottomNav";
 import { useInactivityTimeout } from "../../hooks/useInactivityTimeout";
 
 const pageVariants = {
@@ -16,11 +17,17 @@ export default function GlobalLayout() {
   useInactivityTimeout();
 
   return (
-    <div className="flex min-h-screen flex-col" style={{ background: "var(--color-navy)" }}>
+    <div className="relative flex min-h-screen flex-col" style={{ background: "var(--color-bg-primary)" }}>
+      {/* ═══ Stadium Atmosphere ═══ */}
+      <div className="stadium-bg" />
+      <div className="stadium-fog" />
+      <div className="stadium-vignette" />
+
+      {/* Top Navbar */}
       <Navbar />
 
-      {/* Page content with AnimatePresence for route transitions */}
-      <main className="relative z-10 flex-1 pt-16">
+      {/* Page content */}
+      <main className="relative z-10 flex-1 pt-20 md:pt-24 bottom-nav-safe-area">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
@@ -33,6 +40,9 @@ export default function GlobalLayout() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 }

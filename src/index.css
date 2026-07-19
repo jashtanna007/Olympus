@@ -1,44 +1,63 @@
 @import "tailwindcss";
 
-/* ─── Tailwind v4 Theme Tokens ─── */
+/* ─── Tailwind v4 Theme Tokens — Olympus AAA Sports Platform ─── */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Bebas Neue", ui-sans-serif, sans-serif;
 
-  /* ─── Olympus Palette ─── */
-  --color-navy: #0F1A2E;
-  --color-cream: #F5F0E8;
-  --color-flame: #E8612D;
-  --color-charcoal: #1C2B3A;
-  --color-stone: #8A9BB0;
-  --color-gold: #D4A843;
+  /* ─── Core Palette ─── */
+  --color-bg-primary: #071321;
+  --color-bg-secondary: #0C1728;
+  --color-card: #142334;
+  --color-card-hover: #1a2d42;
 
-  /* Surface layers */
-  --color-surface-900: #0B1220;
-  --color-surface-800: #0F1A2E;
-  --color-surface-700: #1C2B3A;
-  --color-surface-600: #2A3D52;
+  /* Accents */
+  --color-accent-blue: #3B82F6;
+  --color-accent-orange: #F97316;
+  --color-accent-gold: #FBBF24;
+  --color-accent-purple: #8B5CF6;
+  --color-accent-green: #22c55e;
+  --color-accent-red: #ef4444;
 
-  /* Legacy color aliases — keep for any Tailwind utilities still referencing them */
-  --color-neon-cyan: #E8612D;
-  --color-neon-purple: #D4A843;
-  --color-neon-gold: #D4A843;
-  --color-neon-pink: #E8612D;
+  /* Text */
+  --color-text-primary: #F1F5F9;
+  --color-text-secondary: #64748B;
+  --color-text-muted: #475569;
+
+  /* Legacy aliases for Tailwind utilities */
+  --color-neon-cyan: #3B82F6;
+  --color-neon-purple: #8B5CF6;
+  --color-neon-gold: #FBBF24;
+  --color-neon-pink: #F97316;
   --color-neon-green: #22c55e;
   --color-neon-red: #ef4444;
 
+  /* Glass */
+  --color-glass-bg: rgba(20, 35, 52, 0.55);
+  --color-glass-border: rgba(255, 255, 255, 0.06);
+  --color-glass-border-hover: rgba(255, 255, 255, 0.12);
+  --color-navbar-bg: rgba(8, 16, 30, 0.82);
+
   /* Shadows */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2);
-  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-glass: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-glass-hover: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.25);
+  --shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.3), 0 0 60px rgba(59, 130, 246, 0.1);
+  --shadow-glow-orange: 0 0 20px rgba(249, 115, 22, 0.3), 0 0 60px rgba(249, 115, 22, 0.1);
 
-  /* Animations — purposeful only */
-  --animate-fade-in: fade-in 0.3s ease-out;
+  /* Surface layers */
+  --color-surface-900: #071321;
+  --color-surface-800: #0C1728;
+  --color-surface-700: #142334;
+  --color-surface-600: #1e3450;
 
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+  /* Legacy compat */
+  --color-navy: #071321;
+  --color-cream: #F1F5F9;
+  --color-flame: #F97316;
+  --color-charcoal: #142334;
+  --color-stone: #64748B;
+  --color-gold: #FBBF24;
 }
 
 /* ─── Global Reset & Base ─── */
@@ -53,112 +72,178 @@ html {
 }
 
 body {
-  background: var(--color-navy);
-  color: var(--color-cream);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
   min-height: 100vh;
   overflow-x: hidden;
 }
 
-/* Custom selection color */
 ::selection {
-  background: rgba(232, 97, 45, 0.35);
+  background: rgba(59, 130, 246, 0.35);
   color: #ffffff;
 }
 
 /* ─── Focus States ─── */
 :focus-visible {
-  outline: 2px solid var(--color-flame);
+  outline: 2px solid var(--color-accent-blue);
   outline-offset: 2px;
 }
 
 /* ─── Custom Scrollbar ─── */
-::-webkit-scrollbar {
-  width: 6px;
-}
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--color-bg-primary); }
+::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.2); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(59, 130, 246, 0.4); }
 
-::-webkit-scrollbar-track {
-  background: var(--color-navy);
-}
+/* ═══════════════════════════════════════
+   GLASS UTILITIES
+   ═══════════════════════════════════════ */
 
-::-webkit-scrollbar-thumb {
-  background: rgba(138, 155, 176, 0.3);
-  border-radius: 999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(138, 155, 176, 0.55);
-}
-
-/* ─── Card Surfaces (replaces .glass) ─── */
-.card {
-  background: var(--color-charcoal);
-  border: 1px solid rgba(138, 155, 176, 0.12);
-  box-shadow: var(--shadow-card);
-}
-
-.card:hover {
-  border-color: rgba(138, 155, 176, 0.22);
-  box-shadow: var(--shadow-card-hover);
-}
-
-.card-elevated {
-  background: var(--color-charcoal);
-  border: 1px solid rgba(138, 155, 176, 0.15);
-  box-shadow: var(--shadow-elevated);
-}
-
-/* Backwards compat — .glass and .glass-strong map to card surfaces */
 .glass {
-  background: var(--color-charcoal);
-  border: 1px solid rgba(138, 155, 176, 0.12);
-  box-shadow: var(--shadow-card);
-  /* No backdrop-filter */
+  background: var(--color-glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+.glass:hover {
+  border-color: var(--color-glass-border-hover);
+  box-shadow: var(--shadow-glass-hover);
 }
 
 .glass-strong {
-  background: var(--color-surface-900);
-  border: 1px solid rgba(138, 155, 176, 0.15);
+  background: rgba(12, 23, 40, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: var(--shadow-elevated);
-  /* No backdrop-filter */
 }
 
-/* ─── Torch Stripe — the signature element ─── */
-.torch-stripe {
-  position: absolute;
-  width: 120px;
-  height: 600px;
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(232, 97, 45, 0.08) 20%,
-    rgba(232, 97, 45, 0.15) 50%,
-    rgba(232, 97, 45, 0.08) 80%,
-    transparent 100%
-  );
-  transform: rotate(-12deg);
-  pointer-events: none;
+.glass-navbar {
+  background: var(--color-navbar-bg);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Backwards compat */
+.card {
+  background: var(--color-glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+.card:hover {
+  border-color: var(--color-glass-border-hover);
+  box-shadow: var(--shadow-glass-hover);
+}
+
+.card-elevated {
+  background: rgba(12, 23, 40, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-elevated);
+}
+
+/* ═══════════════════════════════════════
+   GLOW EFFECTS
+   ═══════════════════════════════════════ */
+
+.glow-blue {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.25), 0 0 60px rgba(59, 130, 246, 0.08);
+}
+
+.glow-orange {
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), 0 0 60px rgba(249, 115, 22, 0.08);
+}
+
+.glow-blue-text {
+  text-shadow: 0 0 12px rgba(59, 130, 246, 0.5), 0 0 40px rgba(59, 130, 246, 0.2);
+}
+
+/* ═══════════════════════════════════════
+   STADIUM BACKGROUND
+   ═══════════════════════════════════════ */
+
+.stadium-bg {
+  position: fixed;
+  inset: 0;
   z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
 }
 
-/* ─── OTP Input ─── */
+/* Spotlight left */
+.stadium-bg::before {
+  content: "";
+  position: absolute;
+  top: -20%;
+  left: -10%;
+  width: 60%;
+  height: 70%;
+  background: radial-gradient(ellipse at center, rgba(59, 130, 246, 0.06) 0%, transparent 70%);
+}
+
+/* Spotlight right */
+.stadium-bg::after {
+  content: "";
+  position: absolute;
+  top: -20%;
+  right: -10%;
+  width: 60%;
+  height: 70%;
+  background: radial-gradient(ellipse at center, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
+}
+
+/* Vignette overlay */
+.stadium-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(7, 19, 33, 0.6) 100%);
+}
+
+/* Center fog */
+.stadium-fog {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 50%;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at top center, rgba(59, 130, 246, 0.03) 0%, transparent 60%);
+}
+
+/* ═══════════════════════════════════════
+   OTP INPUT
+   ═══════════════════════════════════════ */
+
 .otp-input {
   width: 3rem;
   height: 3.5rem;
   text-align: center;
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--color-flame);
-  background: var(--color-charcoal);
-  border: 1.5px solid rgba(138, 155, 176, 0.2);
+  color: var(--color-accent-blue);
+  background: var(--color-glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
   border-radius: 0.75rem;
   outline: none;
   transition: all 0.2s ease;
-  caret-color: var(--color-flame);
+  caret-color: var(--color-accent-blue);
 }
 
 .otp-input:focus {
-  border-color: var(--color-flame);
-  box-shadow: 0 0 0 3px rgba(232, 97, 45, 0.15);
+  border-color: var(--color-accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 /* ─── Responsive helpers ─── */
@@ -167,5 +252,19 @@ body {
     width: 2.5rem;
     height: 3rem;
     font-size: 1.25rem;
+  }
+}
+
+/* ═══════════════════════════════════════
+   BOTTOM NAVIGATION (mobile only)
+   ═══════════════════════════════════════ */
+
+.bottom-nav-safe-area {
+  padding-bottom: 80px;
+}
+
+@media (min-width: 768px) {
+  .bottom-nav-safe-area {
+    padding-bottom: 0;
   }
 }
