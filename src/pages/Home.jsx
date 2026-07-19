@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import FranchiseSlider from "../components/home/FranchiseSlider";
 import SportsLeaderboard from "../components/home/SportsLeaderboard";
 import ActionCards from "../components/home/ActionCards";
 import FranchiseModal from "../components/home/FranchiseModal";
+import { franchises } from "../data/mockData";
 
 export default function Home() {
   const [selectedFranchise, setSelectedFranchise] = useState(null);
@@ -12,6 +13,15 @@ export default function Home() {
   const handleFranchiseClick = (franchise) => {
     setSelectedFranchise(franchise);
     setModalOpen(true);
+  };
+
+  // Handle clicks from leaderboard rows — find the full franchise object by id
+  const handleTeamClick = (team) => {
+    const fullFranchise = franchises.find((f) => f.id === team.id);
+    if (fullFranchise) {
+      setSelectedFranchise(fullFranchise);
+      setModalOpen(true);
+    }
   };
 
   const handleModalClose = () => {
@@ -58,7 +68,7 @@ export default function Home() {
 
         {/* Sports-wise Team Leaderboard */}
         <section>
-          <SportsLeaderboard />
+          <SportsLeaderboard onTeamClick={handleTeamClick} />
         </section>
 
         {/* Action Cards */}

@@ -1,15 +1,55 @@
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Trophy, Swords, Users, Gamepad2, LogOut } from "lucide-react";
+import { X, Trophy, Swords, Users, Gamepad2, LogOut, BarChart3 } from "lucide-react";
 import { playerStats } from "../../data/mockData";
 import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabase";
+
+/**
+ * Format a JSONB stat key into a readable label.
+ * e.g. "goals" → "Goals", "three_pointers" → "Three Pointers"
+ */
+function formatStatLabel(key) {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function Drawer({ isOpen, onClose }) {
   const { user, role, signOut } = useAuth();
+  const [dynamicStats, setDynamicStats] = useState(null);
+
+  // Fetch the player's stats JSONB from registered_players
+  useEffect(() => {
+    if (!isOpen || !user) return;
+
+    let cancelled = false;
+
+    async function fetchStats() {
+      const { data, error } = await supabase
+        .from("registered_players")
+        .select("stats")
+        .eq("profile_id", user.id)
+        .maybeSingle();
+
+      if (!cancelled && data?.stats) {
+        setDynamicStats(data.stats);
+      }
+    }
+
+    fetchStats();
+    return () => { cancelled = true; };
+  }, [isOpen, user]);
 
   const handleSignOut = async () => {
     onClose();
     await signOut();
   };
+
+  // Filter dynamic stats to only show truthy, non-zero values
+  const visibleStats = dynamicStats
+    ? Object.entries(dynamicStats).filter(([, value]) => value && value !== 0)
+    : [];
 
   return (
     <AnimatePresence>
@@ -120,11 +160,43 @@ export default function Drawer({ isOpen, onClose }) {
                 />
               </motion.div>
 
+              {/* Dynamic Stats from JSONB (Change 3) */}
+              {visibleStats.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.45 }}
+                >
+                  <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <BarChart3 className="h-3.5 w-3.5" />
+                    Performance Stats
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {visibleStats.map(([key, value], i) => (
+                      <motion.div
+                        key={key}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.5 + i * 0.05 }}
+                        className="glass flex items-center justify-between rounded-xl px-3 py-2.5"
+                      >
+                        <span className="text-[11px] font-medium text-slate-400">
+                          {formatStatLabel(key)}
+                        </span>
+                        <span className="text-sm font-bold text-neon-cyan">
+                          {value}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
               {/* Sports */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.45 }}
+                transition={{ delay: visibleStats.length > 0 ? 0.6 : 0.45 }}
               >
                 <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Registered Sports

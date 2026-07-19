@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Medal, ChevronRight } from "lucide-react";
 import { sports, getLeaderboardByPool } from "../../data/mockData";
@@ -9,8 +10,9 @@ import { sports, getLeaderboardByPool } from "../../data/mockData";
  * - Horizontal pill tabs to select sport
  * - Pool A and Pool B sections with team rankings
  * - Animated rank badges (gold/silver/bronze)
+ * - Clickable rows navigate to franchise detail (via modal on Home)
  */
-export default function SportsLeaderboard() {
+export default function SportsLeaderboard({ onTeamClick }) {
   const [selectedSport, setSelectedSport] = useState(sports[0].name);
 
   const { poolA, poolB } = useMemo(
@@ -79,15 +81,15 @@ export default function SportsLeaderboard() {
 
       {/* Pool Sections */}
       <div className="grid gap-6 px-4 sm:px-6 lg:grid-cols-2 lg:gap-8 lg:px-8">
-        <PoolSection title="Pool A" teams={poolA} selectedSport={selectedSport} />
-        <PoolSection title="Pool B" teams={poolB} selectedSport={selectedSport} />
+        <PoolSection title="Pool A" teams={poolA} selectedSport={selectedSport} onTeamClick={onTeamClick} />
+        <PoolSection title="Pool B" teams={poolB} selectedSport={selectedSport} onTeamClick={onTeamClick} />
       </div>
     </div>
   );
 }
 
 // ─── Pool Section ───
-function PoolSection({ title, teams, selectedSport }) {
+function PoolSection({ title, teams, selectedSport, onTeamClick }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -121,7 +123,8 @@ function PoolSection({ title, teams, selectedSport }) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 15 }}
               transition={{ delay: i * 0.06, duration: 0.25 }}
-              className="group flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-800/30"
+              onClick={() => onTeamClick?.(team)}
+              className="group flex cursor-pointer items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-800/30"
             >
               {/* Rank badge */}
               <RankBadge rank={team.rank} teamColor={team.color} />
@@ -152,7 +155,7 @@ function PoolSection({ title, teams, selectedSport }) {
                     PTS
                   </p>
                 </div>
-                <ChevronRight className="h-4 w-4 text-slate-600 transition-colors group-hover:text-slate-400" />
+                <ChevronRight className="h-4 w-4 text-slate-600 transition-all group-hover:text-neon-cyan group-hover:translate-x-0.5" />
               </div>
             </motion.div>
           ))}

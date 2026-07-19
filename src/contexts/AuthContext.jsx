@@ -72,19 +72,21 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe();
   }, [fetchUserRole]);
 
-  // ─── Sign in with OTP (passwordless) ───
-  const signInWithOtp = useCallback(async (email) => {
-    const { data, error } = await supabase.auth.signInWithOtp({ email });
+  // ─── Sign up with email + password ───
+  const signUpWithPassword = useCallback(async (email, password) => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
     return { data, error };
   }, []);
 
-  // ─── Verify OTP ───
-  const verifyOtp = useCallback(async (email, token) => {
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: "email",
-    });
+  // ─── Sign in with email + password ───
+  const signInWithPassword = useCallback(async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    return { data, error };
+  }, []);
+
+  // ─── Resend confirmation email ───
+  const resendConfirmationEmail = useCallback(async (email) => {
+    const { data, error } = await supabase.auth.resend({ type: "signup", email });
     return { data, error };
   }, []);
 
@@ -121,8 +123,9 @@ export function AuthProvider({ children }) {
       role,
       loading,
       // Auth actions
-      signInWithOtp,
-      verifyOtp,
+      signUpWithPassword,
+      signInWithPassword,
+      resendConfirmationEmail,
       signOut,
       // RBAC
       isAdmin,
@@ -131,7 +134,7 @@ export function AuthProvider({ children }) {
       canManageAuction,
       hasRole,
     }),
-    [user, session, role, loading, signInWithOtp, verifyOtp, signOut, isAdmin, canCreateMatch, canScoreMatch, canManageAuction, hasRole]
+    [user, session, role, loading, signUpWithPassword, signInWithPassword, resendConfirmationEmail, signOut, isAdmin, canCreateMatch, canScoreMatch, canManageAuction, hasRole]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
