@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Crown, Medal, Users, X } from "lucide-react";
 import FranchiseEmblem from "../common/FranchiseEmblem";
@@ -22,7 +23,9 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
     };
   }, [isOpen, onClose]);
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && franchise && (
         <motion.div
@@ -32,7 +35,7 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) onClose();
           }}
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-0 backdrop-blur-md sm:items-center sm:p-5"
+          className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/80 p-0 backdrop-blur-xl sm:items-center sm:p-5"
         >
           <motion.article
             initial={{ opacity: 0, y: 50, scale: 0.97 }}
@@ -200,6 +203,7 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
           </motion.article>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
