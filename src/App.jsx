@@ -14,6 +14,7 @@ import Leaderboard from "./pages/Leaderboard";
 import Login from "./pages/Login";
 import Matches from "./pages/Matches";
 import Profile from "./pages/Profile";
+import Registration from "./pages/Registration";
 
 export default function App() {
   return (
@@ -45,6 +46,10 @@ export default function App() {
               <Route
                 path="/profile"
                 element={<Profile />}
+              />
+              <Route
+                path="/register"
+                element={<Registration />}
               />
             </Route>
           </Route>
