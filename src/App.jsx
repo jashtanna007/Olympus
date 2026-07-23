@@ -1,31 +1,60 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 import GlobalLayout from "./components/layout/GlobalLayout";
-import Login from "./pages/Login";
-import Home from "./pages/Home";
+import { AuthProvider } from "./contexts/AuthContext";
 import Franchises from "./pages/Franchises";
-import Matches from "./pages/Matches";
+import AuthCallback from "./pages/AuthCallback";
+import Home from "./pages/Home";
 import Leaderboard from "./pages/Leaderboard";
+import Login from "./pages/Login";
+import Matches from "./pages/Matches";
 import Profile from "./pages/Profile";
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
         <Routes>
-          {/* Login has its own layout (no navbar) */}
           <Route path="/login" element={<Login />} />
 
-          {/* Main app with GlobalLayout */}
-          <Route element={<GlobalLayout />}>
-            <Route path="/" element={<Home />} />
-            <Route path="/franchises" element={<Franchises />} />
-            <Route path="/matches" element={<Matches />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/profile" element={<Profile />} />
+          <Route
+            path="/auth/callback"
+            element={<AuthCallback />}
+          />
+
+          <Route element={<ProtectedRoute />}>
+            <Route element={<GlobalLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route
+                path="/franchises"
+                element={<Franchises />}
+              />
+              <Route
+                path="/matches"
+                element={<Matches />}
+              />
+              <Route
+                path="/leaderboard"
+                element={<Leaderboard />}
+              />
+              <Route
+                path="/profile"
+                element={<Profile />}
+              />
+            </Route>
           </Route>
+
+          <Route
+            path="*"
+            element={<Navigate to="/" replace />}
+          />
         </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

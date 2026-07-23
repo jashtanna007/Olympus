@@ -1,120 +1,304 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { supabase } from "../lib/supabase";
-import { ROLES, ROLE_PERMISSIONS } from "../data/mockData";
+import { ROLE_PERMISSIONS, ROLES } from "../data/mockData";
+import {
+  INSTITUTE_DOMAIN,
+  parseInstituteEmail,
+} from "../utils/instituteEmail";
 
 const AuthContext = createContext(null);
+const AUTH_ERROR_STORAGE_KEY = "olympus_google_auth_error";
+
+function getStoredAuthError() {
+  try {
+    return sessionStorage.getItem(AUTH_ERROR_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function storeAuthError(message) {
+  try {
+    if (message) {
+      sessionStorage.setItem(AUTH_ERROR_STORAGE_KEY, message);
+    } else {
+      sessionStorage.removeItem(AUTH_ERROR_STORAGE_KEY);
+    }
+  } catch {
+    // sessionStorage may be unavailable in restricted browser modes.
+  }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(getStoredAuthError);
+
+  const rememberAuthError = useCallback((message) => {
+    const safeMessage = String(message || "");
+    setAuthError(safeMessage);
+    storeAuthError(safeMessage);
+  }, []);
+
+  const clearAuthError = useCallback(() => {
+    setAuthError("");
+    storeAuthError("");
+  }, []);
 
   const fetchUserRole = useCallback(async (userId, userEmail) => {
     try {
-      const { data, error } = await supabase
+      const { data: existingProfile, error: selectError } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", userId)
+        .maybeSingle();
+
+      if (selectError) {
+        throw selectError;
+      }
+
+      if (existingProfile?.role) {
+        return existingProfile.role;
+      }
+
+      const { data: createdProfile, error: upsertError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            id: userId,
+            email: userEmail,
+            role: ROLES.VIEWER,
+          },
+          {
+            onConflict: "id",
+          },
+        )
+        .select("role")
         .single();
 
-      if (error || !data) {
-        const { data: newProfile, error: insertError } = await supabase
-          .from("profiles")
-          .upsert({ id: userId, email: userEmail, role: ROLES.VIEWER })
-          .select("role")
-          .single();
-
-        if (insertError || !newProfile) {
-          setRole(ROLES.VIEWER);
-        } else {
-          setRole(newProfile.role || ROLES.VIEWER);
-        }
-      } else {
-        setRole(data.role || ROLES.VIEWER);
+      if (upsertError) {
+        throw upsertError;
       }
-    } catch {
-      setRole(ROLES.VIEWER);
+
+      return createdProfile?.role || ROLES.VIEWER;
+    } catch (error) {
+      console.error("Unable to load the user role:", error);
+      return ROLES.VIEWER;
     }
   }, []);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
-        fetchUserRole(s.user.id, s.user.email);
+  const synchronizeSession = useCallback(
+    async (nextSession) => {
+      const nextUser = nextSession?.user ?? null;
+
+      if (!nextUser) {
+        setSession(null);
+        setUser(null);
+        setRole(null);
+        setLoading(false);
+        return;
       }
+
+      const identity = parseInstituteEmail(nextUser.email);
+
+      if (!identity.allowed) {
+        setSession(null);
+        setUser(null);
+        setRole(null);
+        rememberAuthError(identity.reason);
+        setLoading(false);
+
+        const { error } = await supabase.auth.signOut();
+
+        if (error) {
+          console.error("Unable to clear an invalid session:", error);
+        }
+
+        return;
+      }
+
+      clearAuthError();
+      setSession(nextSession);
+      setUser(nextUser);
+
+      const resolvedRole = await fetchUserRole(
+        nextUser.id,
+        identity.email,
+      );
+
+      setRole(resolvedRole);
       setLoading(false);
-    });
+    },
+    [clearAuthError, fetchUserRole, rememberAuthError],
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function restoreSession() {
+      const {
+        data: { session: currentSession },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (!active) return;
+
+      if (error) {
+        console.error("Unable to restore the auth session:", error);
+        setLoading(false);
+        return;
+      }
+
+      await synchronizeSession(currentSession);
+    }
+
+    void restoreSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
-        fetchUserRole(s.user.id, s.user.email);
-      } else {
-        setRole(null);
-      }
-      setLoading(false);
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      window.setTimeout(() => {
+        if (active) {
+          void synchronizeSession(nextSession);
+        }
+      }, 0);
     });
 
-    return () => subscription.unsubscribe();
-  }, [fetchUserRole]);
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [synchronizeSession]);
 
-  const signUpWithPassword = useCallback(async (email, password) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    return { data, error };
-  }, []);
+  const signInWithGoogle = useCallback(async () => {
+    clearAuthError();
 
-  const signInWithPassword = useCallback(async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    return { data, error };
-  }, []);
+    const redirectTo = `${window.location.origin}/auth/callback`;
 
-  const resendConfirmationEmail = useCallback(async (email) => {
-    const { data, error } = await supabase.auth.resend({ type: "signup", email });
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        queryParams: {
+          hd: INSTITUTE_DOMAIN,
+          prompt: "select_account",
+        },
+      },
+    });
+
+    if (error) {
+      rememberAuthError(
+        error.message || "Google sign-in could not be started.",
+      );
+    }
+
     return { data, error };
-  }, []);
+  }, [clearAuthError, rememberAuthError]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    clearAuthError();
+
+    const { error } = await supabase.auth.signOut();
+
     setUser(null);
     setSession(null);
     setRole(null);
-  }, []);
 
-  const isAdmin = useMemo(() => ROLE_PERMISSIONS.isAdmin(role), [role]);
-  const canCreateMatch = useMemo(() => ROLE_PERMISSIONS.canCreateMatch(role), [role]);
-  const canScoreMatch = useMemo(() => ROLE_PERMISSIONS.canScoreMatch(role), [role]);
-  const canManageAuction = useMemo(() => ROLE_PERMISSIONS.canManageAuction(role), [role]);
+    return { error };
+  }, [clearAuthError]);
+
+  const instituteIdentity = useMemo(
+    () => parseInstituteEmail(user?.email),
+    [user?.email],
+  );
+
+  const isAdmin = useMemo(
+    () => ROLE_PERMISSIONS.isAdmin(role),
+    [role],
+  );
+
+  const canCreateMatch = useMemo(
+    () => ROLE_PERMISSIONS.canCreateMatch(role),
+    [role],
+  );
+
+  const canScoreMatch = useMemo(
+    () => ROLE_PERMISSIONS.canScoreMatch(role),
+    [role],
+  );
+
+  const canManageAuction = useMemo(
+    () => ROLE_PERMISSIONS.canManageAuction(role),
+    [role],
+  );
 
   const hasRole = useCallback(
     (requiredRole) => {
       if (role === ROLES.ADMIN) return true;
       return role === requiredRole;
     },
-    [role]
+    [role],
   );
 
   const value = useMemo(
     () => ({
-      user, session, role, loading,
-      signUpWithPassword, signInWithPassword, resendConfirmationEmail, signOut,
-      isAdmin, canCreateMatch, canScoreMatch, canManageAuction, hasRole,
+      user,
+      session,
+      role,
+      loading,
+      authError,
+      rollNumber: instituteIdentity.allowed
+        ? instituteIdentity.rollNumber
+        : null,
+      signInWithGoogle,
+      signOut,
+      clearAuthError,
+      isAdmin,
+      canCreateMatch,
+      canScoreMatch,
+      canManageAuction,
+      hasRole,
     }),
-    [user, session, role, loading, signUpWithPassword, signInWithPassword, resendConfirmationEmail, signOut, isAdmin, canCreateMatch, canScoreMatch, canManageAuction, hasRole]
+    [
+      user,
+      session,
+      role,
+      loading,
+      authError,
+      instituteIdentity,
+      signInWithGoogle,
+      signOut,
+      clearAuthError,
+      isAdmin,
+      canCreateMatch,
+      canScoreMatch,
+      canManageAuction,
+      hasRole,
+    ],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
+
   if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
+
   return context;
 }
