@@ -86,10 +86,12 @@ export default function Navbar() {
                 </span>
               </div>
 
-              <MagneticButton variant="gold" size="sm">
-                Register
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </MagneticButton>
+              <Link to="/register">
+                <MagneticButton variant="gold" size="sm">
+                  Register
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </MagneticButton>
+              </Link>
             </div>
 
             {/* Mobile hamburger */}
