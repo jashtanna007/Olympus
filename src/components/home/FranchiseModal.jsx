@@ -1,25 +1,34 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Crown, Medal, Users, X } from "lucide-react";
+import { Crown, Mail, Users, X } from "lucide-react";
 import FranchiseEmblem from "../common/FranchiseEmblem";
-import { sports } from "../../data/mockData";
+
+function getInitials(name) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
 
 export default function FranchiseModal({ franchise, isOpen, onClose }) {
   useEffect(() => {
     if (!isOpen) return undefined;
 
-    const prev = document.body.style.overflow;
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const handleEsc = (e) => {
-      if (e.key === "Escape") onClose();
+    const handleEscape = (event) => {
+      if (event.key === "Escape") onClose();
     };
-    window.addEventListener("keydown", handleEsc);
+    window.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", handleEsc);
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
     };
   }, [isOpen, onClose]);
 
@@ -32,8 +41,8 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) onClose();
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) onClose();
           }}
           className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/80 p-0 backdrop-blur-xl sm:items-center sm:p-5"
         >
@@ -42,17 +51,53 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 25, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 220, damping: 25 }}
-            className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-3xl glass-strong sm:rounded-3xl"
+            className="relative max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl border border-white/10 bg-[#070c16]/95 sm:rounded-3xl"
+            style={{
+              background: `
+                radial-gradient(
+                  circle at 10% 0%,
+                  ${franchise.color}2C 0%,
+                  transparent 36%
+                ),
+                radial-gradient(
+                  circle at 92% 18%,
+                  ${franchise.secondaryColor}2A 0%,
+                  transparent 42%
+                ),
+                linear-gradient(
+                  155deg,
+                  rgba(255,255,255,0.06) 0%,
+                  rgba(7,12,22,0.98) 40%,
+                  rgba(3,7,15,0.99) 100%
+                )
+              `,
+              boxShadow: `
+                0 0 0 1px ${franchise.color}35,
+                0 38px 100px -42px ${franchise.color}
+              `,
+            }}
           >
-            {/* Color glow */}
             <div
-              className="pointer-events-none absolute inset-x-0 top-0 h-72 opacity-50"
+              className="pointer-events-none absolute inset-x-0 top-0 h-80 opacity-90"
               style={{
-                background: `radial-gradient(circle at 50% 0%, ${franchise.color}55, transparent 65%)`,
+                background: `
+                  radial-gradient(
+                    circle at 50% 0%,
+                    ${franchise.color}3A,
+                    transparent 62%
+                  ),
+                  linear-gradient(
+                    110deg,
+                    transparent 18%,
+                    ${franchise.secondaryColor}12 50%,
+                    transparent 82%
+                  )
+                `,
               }}
             />
 
-            {/* Close */}
+            <div className="pointer-events-none absolute -left-36 top-24 h-24 w-[34rem] -rotate-12 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent blur-2xl" />
+
             <button
               type="button"
               onClick={onClose}
@@ -62,32 +107,62 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
               <X size={19} />
             </button>
 
-            {/* Header */}
             <header className="relative flex flex-col items-center px-5 pb-7 pt-10 text-center sm:px-8">
               <FranchiseEmblem franchise={franchise} size="xl" active />
 
               <span className="mt-5 text-[9px] font-black uppercase tracking-[0.25em] text-olympus-muted">
-                Pool {franchise.pool} franchise
+                Official franchise
               </span>
 
               <h2 className="mt-2 font-display text-4xl font-bold text-white sm:text-6xl">
                 {franchise.name}
               </h2>
 
+              <div
+                className="mt-3 h-1 w-28 rounded-full"
+                style={{
+                  background: `
+                    linear-gradient(
+                      90deg,
+                      transparent,
+                      ${franchise.color},
+                      ${franchise.secondaryColor},
+                      transparent
+                    )
+                  `,
+                  boxShadow: `0 0 14px ${franchise.color}`,
+                }}
+              />
+
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 <span className="rounded-full glass px-4 py-2 text-[9px] font-black uppercase tracking-wider text-olympus-muted">
-                  Overall #{franchise.overallRank}
+                  Pool draw pending
                 </span>
                 <span className="rounded-full glass px-4 py-2 text-[9px] font-black uppercase tracking-wider text-olympus-muted">
-                  {franchise.roster.length} players
+                  Roster after auction
                 </span>
               </div>
             </header>
 
-            {/* Body */}
-            <div className="relative grid gap-4 border-t border-white/[0.06] p-4 sm:grid-cols-[0.8fr_1.2fr] sm:p-6">
-              {/* Leader */}
-              <section className="rounded-2xl glass p-5">
+            <div
+              className="relative grid gap-4 border-t p-4 sm:grid-cols-[0.9fr_1.1fr] sm:p-6"
+              style={{ borderColor: `${franchise.color}24` }}
+            >
+              <section
+                className="rounded-2xl border p-5"
+                style={{
+                  borderColor: `${franchise.color}35`,
+                  background: `
+                    linear-gradient(
+                      145deg,
+                      ${franchise.color}18,
+                      rgba(8,13,24,0.82) 48%,
+                      ${franchise.secondaryColor}12
+                    )
+                  `,
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07)",
+                }}
+              >
                 <div className="flex items-center gap-2">
                   <Crown size={17} style={{ color: franchise.color }} />
                   <h3 className="text-xs font-black uppercase tracking-[0.14em] text-white">
@@ -96,110 +171,70 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
                 </div>
 
                 <div className="mt-5 flex items-center gap-4">
-                  <img
-                    src={franchise.leader.image}
-                    alt=""
-                    className="h-16 w-16 rounded-2xl border border-white/10 bg-olympus-surface object-cover"
-                  />
-                  <div>
-                    <strong className="block text-base text-white">
+                  <span
+                    className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-sm font-black"
+                    style={{
+                      color: franchise.color,
+                      backgroundColor: `${franchise.color}18`,
+                    }}
+                  >
+                    {getInitials(franchise.leader.name)}
+                  </span>
+                  <div className="min-w-0">
+                    <strong className="block truncate text-base text-white">
                       {franchise.leader.name}
                     </strong>
                     <span className="mt-1 block text-[9px] font-bold uppercase tracking-wider text-olympus-subtle">
                       {franchise.leader.role}
                     </span>
+                    <span className="mt-2 block text-xs text-white/70">
+                      Roll {franchise.leader.rollNumber}
+                    </span>
                   </div>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 gap-2">
-                  <div className="rounded-xl glass-dark p-3 text-center">
-                    <strong className="block text-xl" style={{ color: franchise.color }}>
-                      {franchise.roster.length}
-                    </strong>
-                    <span className="mt-1 block text-[7px] font-black uppercase tracking-wider text-olympus-subtle">
-                      Players
-                    </span>
-                  </div>
-                  <div className="rounded-xl glass-dark p-3 text-center">
-                    <strong className="block text-xl" style={{ color: franchise.color }}>
-                      #{franchise.overallRank}
-                    </strong>
-                    <span className="mt-1 block text-[7px] font-black uppercase tracking-wider text-olympus-subtle">
-                      Rank
-                    </span>
-                  </div>
+                <div className="mt-5 flex items-start gap-2 rounded-xl glass-dark p-3">
+                  <Mail size={15} className="mt-0.5 shrink-0 text-olympus-subtle" />
+                  <span className="break-all text-[10px] text-white/70">
+                    {franchise.leader.email}
+                  </span>
                 </div>
               </section>
 
-              {/* Roster */}
-              <section className="rounded-2xl glass p-5">
+              <section
+                className="rounded-2xl border p-5"
+                style={{
+                  borderColor: `${franchise.secondaryColor}35`,
+                  background: `
+                    linear-gradient(
+                      145deg,
+                      ${franchise.secondaryColor}16,
+                      rgba(8,13,24,0.84) 50%,
+                      ${franchise.color}10
+                    )
+                  `,
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07)",
+                }}
+              >
                 <div className="flex items-center gap-2">
                   <Users size={17} style={{ color: franchise.color }} />
                   <h3 className="text-xs font-black uppercase tracking-[0.14em] text-white">
-                    Active roster
+                    Team roster
                   </h3>
                 </div>
 
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {franchise.roster.map((player, index) => (
-                    <div
-                      key={`${player.name}-${index}`}
-                      className="flex items-center gap-3 rounded-xl glass-dark px-3 py-3"
-                    >
-                      <span
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold"
-                        style={{
-                          color: franchise.color,
-                          backgroundColor: `${franchise.color}18`,
-                        }}
-                      >
-                        {player.name.charAt(0)}
-                      </span>
-                      <div className="min-w-0">
-                        <strong className="block truncate text-[11px] text-white/90">
-                          {player.name}
-                        </strong>
-                        <span className="mt-0.5 block truncate text-[8px] font-bold uppercase tracking-wide text-olympus-subtle">
-                          {player.sport}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="mt-5 flex min-h-44 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 glass-dark px-6 text-center">
+                  <Users size={28} className="text-white/20" />
+                  <strong className="mt-3 text-sm text-white/80">
+                    Auction pending
+                  </strong>
+                  <p className="mt-2 max-w-xs text-xs leading-relaxed text-olympus-subtle">
+                    Players, pool assignment, and sport-wise roster details will
+                    appear here after the auction is completed.
+                  </p>
                 </div>
               </section>
             </div>
-
-            {/* Sport rankings */}
-            <section className="relative border-t border-white/[0.06] px-4 pb-6 pt-5 sm:px-6">
-              <div className="mb-4 flex items-center gap-2">
-                <Medal size={17} style={{ color: franchise.color }} />
-                <h3 className="text-xs font-black uppercase tracking-[0.14em] text-white">
-                  Sport rankings
-                </h3>
-              </div>
-
-              <div className="no-scrollbar flex gap-2 overflow-x-auto pb-2">
-                {sports.map((sport) => (
-                  <div
-                    key={sport.name}
-                    className="min-w-[110px] rounded-xl glass-dark p-3"
-                  >
-                    <span className="block truncate text-[8px] font-black uppercase tracking-wider text-olympus-subtle">
-                      {sport.name}
-                    </span>
-                    <strong
-                      className="mt-2 block text-lg"
-                      style={{ color: franchise.color }}
-                    >
-                      #{franchise.sportRanks[sport.name]}
-                    </strong>
-                    <span className="mt-1 block text-[7px] font-bold uppercase tracking-wider text-olympus-subtle">
-                      {franchise.sportPoints[sport.name]} pts
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
           </motion.article>
         </motion.div>
       )}

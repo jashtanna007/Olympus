@@ -11,40 +11,41 @@ export default function FranchiseSlider({ onFranchiseClick }) {
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
 
-  const scrollToIndex = useCallback(
-    (index) => {
-      if (!trackRef.current) return;
-      const clamped = Math.max(0, Math.min(index, franchises.length - 1));
-      setActiveIndex(clamped);
-      const cards = trackRef.current.children;
-      if (cards[clamped]) {
-        cards[clamped].scrollIntoView({
-          behavior: "smooth",
-          block: "nearest",
-          inline: "center",
-        });
-      }
-    },
-    []
+  const scrollToIndex = useCallback((index) => {
+    if (!trackRef.current) return;
+    const clamped = Math.max(0, Math.min(index, franchises.length - 1));
+    setActiveIndex(clamped);
+    const cards = trackRef.current.children;
+    if (cards[clamped]) {
+      cards[clamped].scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  }, []);
+
+  const next = useCallback(
+    () => scrollToIndex(activeIndex + 1),
+    [activeIndex, scrollToIndex]
+  );
+  const prev = useCallback(
+    () => scrollToIndex(activeIndex - 1),
+    [activeIndex, scrollToIndex]
   );
 
-  const next = () => scrollToIndex(activeIndex + 1);
-  const prev = () => scrollToIndex(activeIndex - 1);
-
-  // Keyboard nav
   useEffect(() => {
-    const handleKey = (e) => {
-      if (e.key === "ArrowRight") next();
-      if (e.key === "ArrowLeft") prev();
+    const handleKey = (event) => {
+      if (event.key === "ArrowRight") next();
+      if (event.key === "ArrowLeft") prev();
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [activeIndex, scrollToIndex]);
+  }, [next, prev]);
 
-  // Auto-detect and pop up card closest to center during manual scroll / swipe / drag
   useEffect(() => {
     const container = trackRef.current;
-    if (!container) return;
+    if (!container) return undefined;
 
     let timeoutId;
     const handleScroll = () => {
@@ -55,12 +56,12 @@ export default function FranchiseSlider({ onFranchiseClick }) {
         let closestIndex = 0;
         let minDistance = Infinity;
 
-        cards.forEach((card, i) => {
+        cards.forEach((card, index) => {
           const cardCenter = card.offsetLeft + card.offsetWidth / 2;
           const distance = Math.abs(containerCenter - cardCenter);
           if (distance < minDistance) {
             minDistance = distance;
-            closestIndex = i;
+            closestIndex = index;
           }
         });
 
@@ -75,23 +76,24 @@ export default function FranchiseSlider({ onFranchiseClick }) {
     };
   }, []);
 
-  // Drag scrolling
-  const handleMouseDown = (e) => {
+  const handleMouseDown = (event) => {
+    if (!trackRef.current) return;
     setIsDown(true);
-    setStartX(e.pageX - trackRef.current.offsetLeft);
+    setStartX(event.pageX - trackRef.current.offsetLeft);
     setScrollLeft(trackRef.current.scrollLeft);
   };
+
   const handleMouseUp = () => setIsDown(false);
-  const handleMouseMove = (e) => {
-    if (!isDown) return;
-    e.preventDefault();
-    const x = e.pageX - trackRef.current.offsetLeft;
+
+  const handleMouseMove = (event) => {
+    if (!isDown || !trackRef.current) return;
+    event.preventDefault();
+    const x = event.pageX - trackRef.current.offsetLeft;
     trackRef.current.scrollLeft = scrollLeft - (x - startX) * 1.5;
   };
 
   return (
     <div className="relative w-full py-4">
-      {/* Navigation arrows flanking the slider */}
       <button
         type="button"
         onClick={prev}
@@ -112,7 +114,6 @@ export default function FranchiseSlider({ onFranchiseClick }) {
         <ChevronRight className="h-6 w-6" />
       </button>
 
-      {/* Cards track with 3D perspective feel */}
       <div
         ref={trackRef}
         onMouseDown={handleMouseDown}
@@ -122,13 +123,14 @@ export default function FranchiseSlider({ onFranchiseClick }) {
         className="no-scrollbar flex snap-x snap-mandatory items-center justify-start gap-4 overflow-x-auto px-6 py-8 sm:gap-6 sm:px-12"
         style={{ cursor: isDown ? "grabbing" : "grab" }}
       >
-        {franchises.map((franchise, i) => {
-          const isActive = i === activeIndex;
+        {franchises.map((franchise, index) => {
+          const isActive = index === activeIndex;
+
           return (
             <motion.div
               key={franchise.id}
               onClick={() => {
-                setActiveIndex(i);
+                setActiveIndex(index);
                 onFranchiseClick?.(franchise);
               }}
               animate={{
@@ -144,32 +146,29 @@ export default function FranchiseSlider({ onFranchiseClick }) {
                   : "glass border border-white/10 hover:border-white/20"
               }`}
             >
-              {/* Top spotlight glow line on active card */}
               {isActive && (
-                <div className="absolute top-0 left-1/2 h-1 w-24 -translate-x-1/2 rounded-full bg-gradient-to-r from-transparent via-olympus-gold to-transparent shadow-[0_0_12px_#F4C84A]" />
+                <div className="absolute left-1/2 top-0 h-1 w-24 -translate-x-1/2 rounded-full bg-gradient-to-r from-transparent via-olympus-gold to-transparent shadow-[0_0_12px_#F4C84A]" />
               )}
 
-              {/* Header Badge */}
               <div className="flex w-full items-center justify-between">
                 <span className="rounded-full bg-white/5 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-olympus-muted">
-                  Pool {franchise.pool}
+                  Official franchise
                 </span>
                 <span className="text-[10px] font-black text-olympus-gold">
-                  #{franchise.overallRank}
+                  {franchise.short}
                 </span>
               </div>
 
-              {/* Franchise Emblem / Leader Photo Placeholder */}
-              <div className="my-auto flex flex-col items-center gap-3">
+              <div className="my-auto flex flex-col items-center gap-4">
                 <div className="relative">
                   <FranchiseEmblem
                     franchise={franchise}
-                    size="lg"
+                    size="xl"
                     active={isActive}
                   />
                   {isActive && (
                     <div
-                      className="absolute -inset-3 -z-10 rounded-full opacity-40 blur-xl transition-all group-hover:opacity-70"
+                      className="absolute -inset-3 -z-10 rounded-[28px] opacity-40 blur-xl transition-all group-hover:opacity-70"
                       style={{ background: franchise.color }}
                     />
                   )}
@@ -180,22 +179,21 @@ export default function FranchiseSlider({ onFranchiseClick }) {
                     {franchise.name}
                   </h3>
                   <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-olympus-muted">
-                    Pool {franchise.pool} · Rank #{franchise.overallRank}
+                    Led by {franchise.leader.name}
                   </p>
                 </div>
               </div>
 
-              {/* Card Action Button */}
               <div className="w-full pt-2">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  onClick={(event) => {
+                    event.stopPropagation();
                     onFranchiseClick?.(franchise);
                   }}
                   className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all ${
                     isActive
-                      ? "bg-olympus-gold text-olympus-bg font-extrabold shadow-md hover:bg-yellow-400"
+                      ? "bg-olympus-gold font-extrabold text-olympus-bg shadow-md hover:bg-yellow-400"
                       : "glass text-white/80 hover:bg-white/10 hover:text-white"
                   }`}
                 >
@@ -204,7 +202,6 @@ export default function FranchiseSlider({ onFranchiseClick }) {
                 </button>
               </div>
 
-              {/* Ambient radial color background */}
               <div
                 className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                 style={{
@@ -216,19 +213,18 @@ export default function FranchiseSlider({ onFranchiseClick }) {
         })}
       </div>
 
-      {/* Dot Indicators */}
       <div className="mt-4 flex items-center justify-center gap-2">
-        {franchises.map((_, i) => (
+        {franchises.map((franchise, index) => (
           <button
-            key={i}
+            key={franchise.id}
             type="button"
-            onClick={() => scrollToIndex(i)}
+            onClick={() => scrollToIndex(index)}
             className={`h-2 rounded-full transition-all duration-300 ${
-              i === activeIndex
+              index === activeIndex
                 ? "w-8 bg-olympus-gold shadow-[0_0_8px_#F4C84A]"
                 : "w-2 bg-white/20 hover:bg-white/40"
             }`}
-            aria-label={`Go to franchise ${i + 1}`}
+            aria-label={`Go to ${franchise.name}`}
           />
         ))}
       </div>

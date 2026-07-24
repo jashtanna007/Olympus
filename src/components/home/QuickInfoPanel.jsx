@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { BarChart3, Swords, Handshake } from "lucide-react";
+import { Gavel, Handshake, Shield } from "lucide-react";
 import GlassCard from "../ui/GlassCard";
+import FranchiseEmblem from "../common/FranchiseEmblem";
 import { franchises } from "../../data/mockData";
 
 const fadeUp = {
@@ -9,8 +10,9 @@ const fadeUp = {
 };
 
 export default function QuickInfoPanel() {
-  // Take top 4 franchises for rankings
-  const topTeams = [...franchises].sort((a, b) => a.overallRank - b.overallRank).slice(0, 4);
+  const featuredFranchises = [...franchises]
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .slice(0, 4);
 
   return (
     <motion.div
@@ -20,105 +22,61 @@ export default function QuickInfoPanel() {
       transition={{ staggerChildren: 0.1 }}
       className="grid gap-4 sm:grid-cols-3"
     >
-      {/* Rankings */}
       <motion.div variants={fadeUp}>
         <GlassCard variant="strong" className="h-full p-5">
           <div className="mb-4 flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-olympus-gold/10">
-              <BarChart3 className="h-4 w-4 text-olympus-gold" />
+              <Shield className="h-4 w-4 text-olympus-gold" />
             </div>
             <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-olympus-muted">
-              Rankings
+              Franchise Lineup
             </h3>
           </div>
 
           <div className="space-y-2.5">
-            {topTeams.map((team) => (
-              <div key={team.id} className="flex items-center gap-3">
-                <span
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[9px] font-bold"
-                  style={{
-                    color: team.color,
-                    backgroundColor: `${team.color}18`,
-                  }}
-                >
-                  {team.overallRank}
-                </span>
-                <span className="truncate text-xs font-medium text-white/90">
-                  {team.name}
-                </span>
-                <div
-                  className="ml-auto h-1 w-12 rounded-full"
-                  style={{ backgroundColor: `${team.color}25` }}
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${100 - (team.overallRank - 1) * 12}%`,
-                      backgroundColor: team.color,
-                    }}
-                  />
+            {featuredFranchises.map((franchise) => (
+              <div key={franchise.id} className="flex items-center gap-3">
+                <FranchiseEmblem franchise={franchise} size="sm" />
+                <div className="min-w-0">
+                  <span className="block truncate text-xs font-medium text-white/90">
+                    {franchise.name}
+                  </span>
+                  <span className="block truncate text-[8px] font-bold uppercase tracking-wider text-olympus-subtle">
+                    {franchise.leader.name}
+                  </span>
                 </div>
+                <span className="ml-auto text-[9px] font-black text-olympus-gold">
+                  {franchise.short}
+                </span>
               </div>
             ))}
           </div>
         </GlassCard>
       </motion.div>
 
-      {/* Next match */}
       <motion.div variants={fadeUp}>
         <GlassCard variant="strong" className="h-full p-5">
           <div className="mb-4 flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-olympus-blue/10">
-              <Swords className="h-4 w-4 text-olympus-blue" />
+              <Gavel className="h-4 w-4 text-olympus-blue" />
             </div>
             <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-olympus-muted">
-              Next Match
+              Auction Status
             </h3>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="text-center">
-              <div
-                className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl text-xs font-bold"
-                style={{
-                  background: `linear-gradient(135deg, ${franchises[0].color}CC, ${franchises[0].color}66)`,
-                  color: "#fff",
-                }}
-              >
-                {franchises[0].short}
-              </div>
-              <p className="mt-2 text-[9px] font-bold uppercase tracking-wider text-white/70">
-                {franchises[0].name.split(" ")[0]}
-              </p>
-            </div>
-
-            <div className="text-center">
-              <p className="font-display text-lg font-bold text-olympus-gold">VS</p>
-              <p className="mt-1 text-[8px] font-bold uppercase tracking-wider text-olympus-subtle">
-                Cricket · 3:00 PM
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div
-                className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl text-xs font-bold"
-                style={{
-                  background: `linear-gradient(135deg, ${franchises[1].color}CC, ${franchises[1].color}66)`,
-                  color: "#fff",
-                }}
-              >
-                {franchises[1].short}
-              </div>
-              <p className="mt-2 text-[9px] font-bold uppercase tracking-wider text-white/70">
-                {franchises[1].name.split(" ")[0]}
-              </p>
-            </div>
+          <div className="flex h-[calc(100%-3rem)] min-h-36 flex-col items-center justify-center rounded-2xl glass-dark px-5 text-center">
+            <Gavel className="h-7 w-7 text-olympus-gold/70" />
+            <strong className="mt-3 text-sm text-white/90">
+              Leaders confirmed
+            </strong>
+            <p className="mt-2 text-xs leading-relaxed text-olympus-subtle">
+              Pools and player rosters will be published after the auction.
+            </p>
           </div>
         </GlassCard>
       </motion.div>
 
-      {/* Partners */}
       <motion.div variants={fadeUp}>
         <GlassCard variant="strong" className="h-full p-5">
           <div className="mb-4 flex items-center gap-2">
