@@ -1,8 +1,11 @@
 import { motion } from "framer-motion";
 import { ArrowUpRight, Trophy } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import MagneticButton from "../ui/MagneticButton";
 
 export default function RegisterCTA() {
+  const navigate = useNavigate();
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 24 }}
@@ -32,7 +35,7 @@ export default function RegisterCTA() {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          <MagneticButton variant="gold" size="lg">
+          <MagneticButton variant="gold" size="lg" onClick={() => navigate("/register")}>
             Register Now
             <ArrowUpRight className="h-4 w-4" />
           </MagneticButton>
