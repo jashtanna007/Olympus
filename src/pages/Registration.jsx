@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
+import { prepareProfilePhoto } from "../utils/prepareProfilePhoto";
 import GlassDropdown from "../components/ui/GlassDropdown";
 import {
   BRANCHES,
@@ -85,6 +86,7 @@ export default function Registration() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [photoProcessing, setPhotoProcessing] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -168,23 +170,41 @@ export default function Registration() {
   }, []);
 
   /* ─── Photo upload ─── */
-  const handlePhotoChange = useCallback((e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert("Photo must be under 5 MB");
-      return;
-    }
-    setPhotoFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setPhotoPreview(ev.target.result);
-    reader.readAsDataURL(file);
-  }, []);
+  const handlePhotoChange = useCallback(
+    async (e) => {
+      const originalFile = e.target.files?.[0];
+      if (!originalFile) return;
+
+      setPhotoProcessing(true);
+      setSubmitError("");
+
+      try {
+        const prepared = await prepareProfilePhoto(originalFile);
+
+        setPhotoFile(prepared.file);
+
+        const reader = new FileReader();
+        reader.onload = (event) => setPhotoPreview(event.target.result);
+        reader.readAsDataURL(prepared.file);
+      } catch (error) {
+        console.error("Photo processing failed:", error);
+        setPhotoFile(null);
+        setPhotoPreview(existingPhotoUrl || null);
+        setSubmitError(error.message || "Could not process the photo.");
+        e.target.value = "";
+      } finally {
+        setPhotoProcessing(false);
+      }
+    },
+    [existingPhotoUrl]
+  );
 
   /* ─── Validation ─── */
-  // Photo required only for first-time registrations.
-  // In edit mode (isEditing=true) the player already submitted once — skip photo gate.
-  const hasPhoto = isEditing || photoFile !== null || existingPhotoUrl.length > 0;
+  // Every registration must have either a newly processed photo
+  // or a previously uploaded photo.
+  const hasPhoto =
+    !photoProcessing &&
+    (photoFile !== null || existingPhotoUrl.length > 0);
 
   const step1Valid =
     fullName.trim().length > 0 &&
@@ -215,36 +235,44 @@ export default function Registration() {
     setSubmitError("");
 
     try {
-      // 1. Try photo upload — non-blocking, falls back gracefully if bucket missing
+      // 1. Keep one stable Storage object per user.
+      // The URL version prevents the browser/CDN from showing an old photo.
       let photoUrl = existingPhotoUrl;
-      if (photoFile) {
-        try {
-          const ext = photoFile.name.split(".").pop();
-          const filePath = `player-photos/${user.id}.${ext}`;
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from("olympus-assets")
-            .upload(filePath, photoFile, { upsert: true });
 
-          if (uploadError) {
-            console.warn(
-              "Photo upload failed (bucket may not exist yet):",
-              uploadError.message
-            );
-          } else if (uploadData) {
-            const {
-              data: { publicUrl },
-            } = supabase.storage
-              .from("olympus-assets")
-              .getPublicUrl(uploadData.path);
-            photoUrl = publicUrl;
-          }
-        } catch (photoErr) {
-          console.warn("Photo upload exception:", photoErr);
+      if (photoFile) {
+        const filePath = `player-photos/${user.id}/profile`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("olympus-assets")
+          .upload(filePath, photoFile, {
+            upsert: true,
+            cacheControl: "0",
+            contentType: photoFile.type,
+          });
+
+        if (uploadError) {
+          throw new Error(`Photo upload failed: ${uploadError.message}`);
         }
+
+        if (!uploadData?.path) {
+          throw new Error("Photo upload completed without a storage path.");
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage
+          .from("olympus-assets")
+          .getPublicUrl(uploadData.path);
+
+        photoUrl = `${publicUrl}?v=${Date.now()}`;
+      }
+
+      if (!photoUrl) {
+        throw new Error("A profile photo is required.");
       }
 
       // 2. Upsert registration — one row per user_id
-      const { error: upsertError } = await supabase
+      const { data: savedRegistration, error: upsertError } = await supabase
         .from("player_registrations")
         .upsert(
           {
@@ -263,10 +291,15 @@ export default function Registration() {
             })),
           },
           { onConflict: "user_id" }
-        );
+        )
+        .select("photo_url")
+        .single();
 
       if (upsertError) throw upsertError;
 
+      setExistingPhotoUrl(savedRegistration.photo_url);
+      setPhotoPreview(savedRegistration.photo_url);
+      setPhotoFile(null);
       setSubmitted(true);
     } catch (err) {
       console.error("Registration error:", err);
@@ -446,6 +479,7 @@ export default function Registration() {
                 year={year}
                 setYear={setYear}
                 photoPreview={photoPreview}
+                photoProcessing={photoProcessing}
                 fileInputRef={fileInputRef}
                 handlePhotoChange={handlePhotoChange}
               />
@@ -542,6 +576,7 @@ function Step1PersonalDetails({
   year,
   setYear,
   photoPreview,
+  photoProcessing,
   fileInputRef,
   handlePhotoChange,
 }) {
@@ -552,9 +587,17 @@ function Step1PersonalDetails({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="group relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl glass-strong transition hover:ring-2 hover:ring-olympus-gold/40"
+          disabled={photoProcessing}
+          className="group relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl glass-strong transition hover:ring-2 hover:ring-olympus-gold/40 disabled:cursor-wait disabled:opacity-70"
         >
-          {photoPreview ? (
+          {photoProcessing ? (
+            <div className="flex flex-col items-center gap-2 text-olympus-gold">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="text-[9px] font-semibold uppercase tracking-wider">
+                Optimizing
+              </span>
+            </div>
+          ) : photoPreview ? (
             <img
               src={photoPreview}
               alt="Your photo"
@@ -580,7 +623,7 @@ function Step1PersonalDetails({
           className="hidden"
         />
         <span className="text-[10px] text-olympus-subtle">
-          This photo will be shown during the auction · Max 5 MB
+          Original max 5 MB · automatically optimized to 700 KB
         </span>
       </div>
 

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   LogOut,
@@ -7,6 +8,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { supabase } from "../lib/supabase";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -18,12 +20,47 @@ export default function Profile() {
     signOut,
   } = useAuth();
 
+  const [registrationPhotoUrl, setRegistrationPhotoUrl] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRegistrationPhoto() {
+      if (!user?.id) {
+        setRegistrationPhotoUrl("");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("player_registrations")
+        .select("photo_url")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.warn("Could not load registration photo:", error.message);
+        return;
+      }
+
+      if (!cancelled) {
+        setRegistrationPhotoUrl(data?.photo_url || "");
+      }
+    }
+
+    loadRegistrationPhoto();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   const fullName =
     user?.user_metadata?.full_name ||
     user?.user_metadata?.name ||
     "Olympus Participant";
 
   const avatarUrl =
+    registrationPhotoUrl ||
     user?.user_metadata?.avatar_url ||
     user?.user_metadata?.picture ||
     "";
