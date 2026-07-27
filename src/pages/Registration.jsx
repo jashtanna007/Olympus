@@ -72,6 +72,7 @@ export default function Registration() {
     user?.user_metadata?.full_name || user?.user_metadata?.name || ""
   );
   const [phone, setPhone] = useState("");
+  const [gender, setGender] = useState("");
   const [branch, setBranch] = useState("");
   const [year, setYear] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
@@ -115,6 +116,7 @@ export default function Registration() {
           setIsEditing(true);
           setFullName(data.full_name || "");
           setPhone(data.phone || "");
+          setGender(data.gender || "");
           setBranch(data.branch || "");
           setYear(data.year || "");
           setExistingPhotoUrl(data.photo_url || "");
@@ -209,6 +211,7 @@ export default function Registration() {
   const step1Valid =
     fullName.trim().length > 0 &&
     phone.trim().length >= 10 &&
+    gender.length > 0 &&
     branch.length > 0 &&
     year.length > 0 &&
     hasPhoto;
@@ -281,6 +284,7 @@ export default function Registration() {
             email,
             roll_number: rollNumber || "",
             phone: phone.trim(),
+            gender,
             branch,
             year,
             photo_url: photoUrl,
@@ -474,6 +478,8 @@ export default function Registration() {
                 rollNumber={rollNumber}
                 phone={phone}
                 setPhone={setPhone}
+                gender={gender}
+                setGender={setGender}
                 branch={branch}
                 setBranch={setBranch}
                 year={year}
@@ -497,6 +503,7 @@ export default function Registration() {
                 email={email}
                 rollNumber={rollNumber}
                 phone={phone}
+                gender={gender}
                 branch={branch}
                 year={year}
                 photoPreview={photoPreview}
@@ -571,6 +578,8 @@ function Step1PersonalDetails({
   rollNumber,
   phone,
   setPhone,
+  gender,
+  setGender,
   branch,
   setBranch,
   year,
@@ -653,6 +662,15 @@ function Step1PersonalDetails({
         placeholder="10-digit mobile number"
         type="tel"
         maxLength={10}
+      />
+
+      {/* Gender */}
+      <GlassDropdown
+        label="Gender"
+        value={gender}
+        onChange={setGender}
+        options={["Male", "Female"]}
+        placeholder="Select your gender"
       />
 
       {/* Branch */}
@@ -812,6 +830,7 @@ function Step3Review({
   email,
   rollNumber,
   phone,
+  gender,
   branch,
   year,
   photoPreview,
@@ -850,6 +869,7 @@ function Step3Review({
           <div className="mt-4 grid grid-cols-2 gap-3">
             <ReviewField label="Roll No." value={rollNumber || "—"} />
             <ReviewField label="Phone" value={phone} />
+            <ReviewField label="Gender" value={gender} />
             <ReviewField label="Branch" value={branch} />
             <ReviewField label="Year" value={year} />
           </div>

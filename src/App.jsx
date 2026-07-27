@@ -15,6 +15,8 @@ import Login from "./pages/Login";
 import Matches from "./pages/Matches";
 import Profile from "./pages/Profile";
 import Registration from "./pages/Registration";
+import Auction from "./pages/Auction";
+import Retention from "./pages/Retention";
 
 export default function App() {
   return (
@@ -50,6 +52,14 @@ export default function App() {
               <Route
                 path="/register"
                 element={<Registration />}
+              />
+              <Route
+                path="/auction"
+                element={<Auction />}
+              />
+              <Route
+                path="/retention"
+                element={<Retention />}
               />
             </Route>
           </Route>
