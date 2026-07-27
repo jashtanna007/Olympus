@@ -7,6 +7,7 @@ import {
   Shield,
   Swords,
   BarChart3,
+  Gavel,
   User,
   Menu,
   X,
@@ -19,6 +20,7 @@ const NAV_LINKS = [
   { label: "Franchises", path: "/franchises", icon: Shield },
   { label: "Matches", path: "/matches", icon: Swords },
   { label: "Leaderboard", path: "/leaderboard", icon: BarChart3 },
+  { label: "Auction", path: "/auction", icon: Gavel },
   { label: "Profile", path: "/profile", icon: User },
 ];
 

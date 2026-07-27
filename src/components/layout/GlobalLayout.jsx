@@ -3,8 +3,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "./Navbar";
 import BottomNav from "./BottomNav";
 
+// Pages that are full-screen fixed overlays — skip layout padding/animation
+const FULLSCREEN_ROUTES = ["/auction", "/retention"];
+
 export default function GlobalLayout() {
   const location = useLocation();
+  const isFullscreen = FULLSCREEN_ROUTES.includes(location.pathname);
 
   return (
     <div className="relative min-h-screen bg-olympus-bg">
@@ -40,19 +44,23 @@ export default function GlobalLayout() {
       <Navbar />
 
       {/* Page content */}
-      <main className="relative z-10 bottom-nav-safe-area">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
-      </main>
+      {isFullscreen ? (
+        <Outlet />
+      ) : (
+        <main className="relative z-10 bottom-nav-safe-area">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      )}
 
       {/* Mobile bottom nav */}
       <BottomNav />
