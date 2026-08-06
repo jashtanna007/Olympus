@@ -4,7 +4,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Crown, Mail, Users, X } from "lucide-react";
 import FranchiseEmblem from "../common/FranchiseEmblem";
 
-function getInitials(name) {
+function formatMoney(amount) {
+  if (amount == null) return "—";
+  return `₹ ${Number(amount).toLocaleString("en-IN")}`;
+}
+
+function getInitials(name = "") {
   return name
     .split(/\s+/)
     .filter(Boolean)
@@ -136,10 +141,10 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
 
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 <span className="rounded-full glass px-4 py-2 text-[9px] font-black uppercase tracking-wider text-olympus-muted">
-                  Pool draw pending
+                  {franchise.roster?.length || 0} players bought
                 </span>
                 <span className="rounded-full glass px-4 py-2 text-[9px] font-black uppercase tracking-wider text-olympus-muted">
-                  Roster after auction
+                  {formatMoney(franchise.remainingBudget)} purse left
                 </span>
               </div>
             </header>
@@ -223,16 +228,47 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
                   </h3>
                 </div>
 
-                <div className="mt-5 flex min-h-44 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 glass-dark px-6 text-center">
-                  <Users size={28} className="text-white/20" />
-                  <strong className="mt-3 text-sm text-white/80">
-                    Auction pending
-                  </strong>
-                  <p className="mt-2 max-w-xs text-xs leading-relaxed text-olympus-subtle">
-                    Players, pool assignment, and sport-wise roster details will
-                    appear here after the auction is completed.
-                  </p>
-                </div>
+                {franchise.roster?.length ? (
+                  <div className="mt-5 max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {franchise.roster.map((player, index) => (
+                      <div
+                        key={player.id || player.rollNumber}
+                        className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-black/15 p-3"
+                      >
+                        <span
+                          className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 text-[10px] font-black"
+                          style={{
+                            color: franchise.color,
+                            backgroundColor: `${franchise.color}18`,
+                          }}
+                        >
+                          {player.photoUrl ? (
+                            <img src={player.photoUrl} alt={player.name} className="h-full w-full object-cover" />
+                          ) : (
+                            getInitials(player.name)
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <strong className="block truncate text-sm text-white">
+                            {index + 1}. {player.name}
+                          </strong>
+                          <p className="mt-1 text-[10px] text-white/45">
+                            Roll {player.rollNumber}
+                            {player.status === "retained" ? " · Retained" : ""}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-5 flex min-h-44 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 glass-dark px-6 text-center">
+                    <Users size={28} className="text-white/20" />
+                    <strong className="mt-3 text-sm text-white/80">No players purchased yet</strong>
+                    <p className="mt-2 max-w-xs text-xs leading-relaxed text-olympus-subtle">
+                      Sold players will appear here immediately after the auctioneer confirms the sale.
+                    </p>
+                  </div>
+                )}
               </section>
             </div>
           </motion.article>
