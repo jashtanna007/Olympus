@@ -17,6 +17,7 @@ import Profile from "./pages/Profile";
 import Registration from "./pages/Registration";
 import Auction from "./pages/Auction";
 import Retention from "./pages/Retention";
+import AuctionSummary from "./pages/AuctionSummary";
 
 export default function App() {
   return (
@@ -60,6 +61,10 @@ export default function App() {
               <Route
                 path="/retention"
                 element={<Retention />}
+              />
+              <Route
+                path="/auction-summary"
+                element={<AuctionSummary />}
               />
             </Route>
           </Route>

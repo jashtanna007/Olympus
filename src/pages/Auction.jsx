@@ -1,46 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Gavel, Play, Pause, Shuffle, Shield, User, BadgeCheck, Star,
-  GraduationCap, MapPin, Phone, Mail, Calendar, Minus, Plus,
-  CheckCircle2, XCircle, SkipForward, Timer,
+  Gavel, Play, Pause, Shuffle, Shield, User, BadgeCheck, Star, ClipboardList,
+  GraduationCap, MapPin, Phone, Mail, Calendar,
+  CheckCircle2, XCircle, SkipForward, Undo2, Redo2,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 import { franchises as mockFranchises } from "../data/mockData";
 import FranchiseEmblem from "../components/common/FranchiseEmblem";
-
-/* ─── Countdown Timer Hook (60 seconds) ─── */
-function useCountdown(isActive, endsAt, initialSeconds = 60) {
-  const getSeconds = useCallback(() => {
-    if (!endsAt) return initialSeconds;
-    return Math.max(0, Math.ceil((new Date(endsAt).getTime() - Date.now()) / 1000));
-  }, [endsAt, initialSeconds]);
-  const [seconds, setSeconds] = useState(getSeconds);
-  const [flash, setFlash] = useState(false);
-  const ref = useRef(null);
-
-  const reset = useCallback(() => {
-    setSeconds(getSeconds());
-    setFlash(false);
-  }, [getSeconds]);
-
-  useEffect(() => {
-    clearInterval(ref.current);
-    if (!isActive) return;
-    setSeconds(getSeconds());
-    ref.current = setInterval(() => setSeconds(getSeconds()), 1000);
-    return () => clearInterval(ref.current);
-  }, [isActive, getSeconds]);
-
-  const bump = useCallback(() => {
-    setFlash(true);
-    setTimeout(() => setFlash(false), 800);
-  }, []);
-
-  return { seconds, flash, reset, bump };
-}
 
 /* ════════════════════════════════════════════════════════════
    LIVE AUCTION — Zero-scroll, all bugs fixed
@@ -55,10 +24,12 @@ export default function Auction() {
   const [franchiseList, setFranchiseList]   = useState(mockFranchises);
   const [auctionPlayers, setAuctionPlayers] = useState([]);
   const [bids, setBids]                     = useState([]);
-  const [selectedFranchiseId, setSelectedFranchiseId] = useState(null);
-  const [nextBidAmount, setNextBidAmount]   = useState(null);
   const [flashFid, setFlashFid]             = useState(null);
   const [loading, setLoading]               = useState(true);
+  const [bidPending, setBidPending]         = useState(false);
+  const [historyPending, setHistoryPending] = useState(false);
+  const [canUndo, setCanUndo]               = useState(false);
+  const [canRedo, setCanRedo]               = useState(false);
 
   /* ─── Merge DB franchises with mock logo data ─── */
   // DB rows may not have logo/color fields → patch them from mockFranchises
@@ -83,27 +54,18 @@ export default function Auction() {
     return { ...ap, ...reg };
   }, [auctionConfig, auctionPlayers]);
 
-  /* ─── Derived: upcoming (show mock when empty for demo) ─── */
-  const MOCK_UPCOMING = useMemo(() => enrichedFranchises.slice(0, 4).map((f, i) => ({
-    id: `mock-up-${i}`,
-    full_name: ["Rohan Singh", "Vikram Iyer", "Kabir Das", "Aditya Nair"][i],
-    role: ["Batsman", "Goalkeeper", "Power Hitter", "All-Rounder"][i],
-    base_price: 200,
-    photo_url: null,
-  })), [enrichedFranchises]);
-
+  /* ─── Derived: upcoming players from the real auction queue ─── */
   const upcomingList = useMemo(() => {
-    const real = auctionPlayers
+    return auctionPlayers
       .filter((p) => p.status === "upcoming")
       .sort((a, b) => a.queue_order - b.queue_order)
-      .slice(0, 4)
+      .slice(0, 5)
       .map((p) => {
         const regRaw = p.registration || p.player_registrations;
         const reg = Array.isArray(regRaw) ? (regRaw[0] ?? {}) : (regRaw ?? {});
         return { ...p, ...reg };
       });
-    return real.length > 0 ? real : MOCK_UPCOMING;
-  }, [auctionPlayers, MOCK_UPCOMING]);
+  }, [auctionPlayers]);
 
   /* ─── Derived: bids for current player (DB + local) ─── */
   const dbBidsForCurrent = useMemo(() => {
@@ -120,63 +82,57 @@ export default function Auction() {
     return enrichedFranchises.find((f) => String(f.id) === String(highestBid.franchise_id)) || null;
   }, [highestBid, enrichedFranchises]);
 
-  // Per-franchise last bid map for bottom strip
-  const lastBidsMap = useMemo(() => {
-    const map = {};
-    // DB bids
-    if (auctionConfig?.current_player_id) {
-      bids
-        .filter((b) => b.auction_player_id === auctionConfig.current_player_id)
-        .forEach((b) => {
-          const k = String(b.franchise_id);
-          if (!map[k] || b.amount > map[k]) map[k] = b.amount;
-        });
-    }
-    return map;
-  }, [bids, auctionConfig]);
 
   const basePrice = currentPlayer?.base_price ?? auctionConfig?.base_price ?? 200;
-  const bidInc    = auctionConfig?.bid_increment ?? 50;
   const highestAmount = highestBid?.amount ?? null;
-  const displayNextBid = nextBidAmount ?? ((highestAmount ?? basePrice) + bidInc);
+  const nextBidAmount = highestAmount == null
+    ? basePrice
+    : highestAmount + (highestAmount < 500 ? 50 : 100);
+  const rosterCountsByFranchise = useMemo(() => {
+    const counts = {};
+    auctionPlayers.forEach((player) => {
+      if (!["sold", "retained"].includes(player.status) || !player.sold_to_franchise_id) return;
+      const key = String(player.sold_to_franchise_id);
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  }, [auctionPlayers]);
 
-  /* ─── Timer ─── */
   const isLive = auctionConfig?.status === "live";
-  const { seconds: timerSec, flash: timerFlash, reset: resetTimer, bump: bumpTimer } =
-    useCountdown(isLive && !!currentPlayer, auctionConfig?.round_ends_at, 60);
-
-  const prevPlayerId = useRef(null);
-  useEffect(() => {
-    if (currentPlayer?.id && currentPlayer.id !== prevPlayerId.current) {
-      prevPlayerId.current = currentPlayer.id;
-      resetTimer();
-    }
-  }, [currentPlayer?.id, resetTimer]);
 
   /* ─── Load Data ─── */
   const refreshAuctionData = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {
-      const [configResult, franchisesResult, playersResult, bidsResult] = await Promise.all([
+      const [configResult, franchisesResult, playersResult, bidsResult, historyResult] = await Promise.all([
         supabase.from("auction_config").select("*").order("created_at").limit(1).maybeSingle(),
         supabase.from("franchises").select("*").order("display_order"),
         supabase.from("auction_players").select("*, registration:player_registrations(*)").order("queue_order"),
         supabase.from("auction_bids").select("*").order("created_at", { ascending: false }),
+        isAdmin
+          ? supabase.rpc("auction_history_state")
+          : Promise.resolve({ data: [{ can_undo: false, can_redo: false }], error: null }),
       ]);
       if (configResult.error) throw configResult.error;
       if (franchisesResult.error) throw franchisesResult.error;
       if (playersResult.error) throw playersResult.error;
       if (bidsResult.error) throw bidsResult.error;
+      if (historyResult.error) throw historyResult.error;
       setAuctionConfig(configResult.data);
       if (franchisesResult.data?.length) setFranchiseList(franchisesResult.data);
       setAuctionPlayers(playersResult.data || []);
       setBids(bidsResult.data || []);
+      const historyState = Array.isArray(historyResult.data)
+        ? historyResult.data[0]
+        : historyResult.data;
+      setCanUndo(Boolean(historyState?.can_undo));
+      setCanRedo(Boolean(historyState?.can_redo));
     } catch (error) {
       console.error("Auction load error:", error);
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     void refreshAuctionData(true);
@@ -195,46 +151,87 @@ export default function Auction() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "auction_bids"    }, (p) => {
         const fid = String(p.new.franchise_id);
         setFlashFid(fid);
-        bumpTimer();
         setTimeout(() => setFlashFid(null), 1200);
         refreshSoon();
       })
       .on("postgres_changes", { event: "*",      schema: "public", table: "auction_players" }, refreshSoon)
       .on("postgres_changes", { event: "*",      schema: "public", table: "franchises"      }, refreshSoon)
+      .on("postgres_changes", { event: "*",      schema: "public", table: "auction_action_history" }, refreshSoon)
       .subscribe();
     return () => {
       clearTimeout(refreshTimeout);
       supabase.removeChannel(ch);
     };
-  }, [bumpTimer, refreshAuctionData]);
+  }, [refreshAuctionData]);
 
   /* ─── BID NOW ─── */
   const placeBidForFranchise = useCallback(async (franchiseId) => {
-    if (!isAdmin || !currentPlayer) return;
-    const fid = String(franchiseId);
-    const amount = nextBidAmount ?? ((highestAmount ?? basePrice) + bidInc);
+    if (!currentPlayer || bidPending) return;
 
-    const { error } = await supabase.rpc("auction_place_bid", {
-      p_franchise_id: franchiseId,
-      p_amount: amount,
-    });
-    if (error) {
-      console.error("Bid rejected:", error);
-      alert(error.message);
-      await refreshAuctionData();
+    if (!isAdmin) {
+      alert("Only an admin or auctioneer can place auction bids.");
       return;
     }
-    setSelectedFranchiseId(franchiseId);
-    setNextBidAmount(null);
-    setFlashFid(fid);
-    bumpTimer();
-    setTimeout(() => setFlashFid(null), 1200);
-    await refreshAuctionData();
-  }, [currentPlayer, nextBidAmount, highestAmount, basePrice, bidInc, isAdmin, bumpTimer, refreshAuctionData]);
 
-  const placeNextBid = useCallback(() => {
-    if (selectedFranchiseId) placeBidForFranchise(selectedFranchiseId);
-  }, [selectedFranchiseId, placeBidForFranchise]);
+    if (
+      highestBidderFranchise &&
+      String(highestBidderFranchise.id) === String(franchiseId)
+    ) {
+      alert("This franchise is already the highest bidder.");
+      return;
+    }
+
+    const fid = String(franchiseId);
+    setBidPending(true);
+
+    try {
+      const { error } = await supabase.rpc("auction_place_bid", {
+        p_franchise_id: franchiseId,
+      });
+
+      if (error) {
+        console.error("Bid rejected:", error);
+        alert(error.message);
+        await refreshAuctionData();
+        return;
+      }
+
+      setFlashFid(fid);
+      setTimeout(() => setFlashFid(null), 1200);
+      await refreshAuctionData();
+    } finally {
+      setBidPending(false);
+    }
+  }, [
+    currentPlayer,
+    bidPending,
+    isAdmin,
+    highestBidderFranchise,
+    refreshAuctionData,
+  ]);
+
+  /* ─── Undo / Redo ─── */
+  const runHistoryAction = useCallback(async (direction) => {
+    if (!isAdmin || historyPending) return;
+
+    setHistoryPending(true);
+    try {
+      const functionName = direction === "undo"
+        ? "auction_undo_last"
+        : "auction_redo_last";
+      const { error } = await supabase.rpc(functionName);
+
+      if (error) {
+        console.error(`Unable to ${direction} auction action:`, error);
+        alert(error.message);
+        return;
+      }
+
+      await refreshAuctionData();
+    } finally {
+      setHistoryPending(false);
+    }
+  }, [historyPending, isAdmin, refreshAuctionData]);
 
   /* ─── Advance Player ─── */
   const advanceToNextPlayer = useCallback(async () => {
@@ -246,11 +243,8 @@ export default function Auction() {
       alert(error.message);
       return;
     }
-    setNextBidAmount(null);
-    setSelectedFranchiseId(null);
-    resetTimer();
     await refreshAuctionData();
-  }, [isAdmin, currentPlayer, resetTimer, refreshAuctionData]);
+  }, [isAdmin, currentPlayer, refreshAuctionData]);
 
   /* ─── SOLD ─── */
   const markSold = useCallback(async () => {
@@ -261,8 +255,6 @@ export default function Auction() {
       alert(error.message);
       return;
     }
-    setNextBidAmount(null);
-    setSelectedFranchiseId(null);
     await refreshAuctionData();
   }, [isAdmin, currentPlayer, highestBid, refreshAuctionData]);
 
@@ -275,8 +267,6 @@ export default function Auction() {
       alert(error.message);
       return;
     }
-    setNextBidAmount(null);
-    setSelectedFranchiseId(null);
     await refreshAuctionData();
   }, [isAdmin, currentPlayer, refreshAuctionData]);
 
@@ -318,8 +308,6 @@ export default function Auction() {
   const isPaused   = auctionConfig?.status === "paused";
   const isSetup    = !auctionConfig || ["setup", "retention", "completed"].includes(auctionConfig?.status);
   const primarySport = currentPlayer?.sports?.[0];
-  const timerDanger = timerSec > 0 && timerSec <= 10;
-  const selectedF = enrichedFranchises.find((f) => String(f.id) === String(selectedFranchiseId));
 
   if (loading) {
     return (
@@ -331,7 +319,7 @@ export default function Auction() {
 
   /* ══════════════ RENDER ══════════════ */
   return (
-    <div className="fixed inset-0 z-20 flex h-screen w-screen flex-col overflow-hidden bg-[#07090F] text-white select-none pt-[64px]">
+    <div className="fixed inset-0 z-20 flex h-screen w-screen flex-col overflow-hidden bg-[#07090F] text-white select-none pt-[92px]">
 
       {/* ── TOP BAR ── */}
       <div className="shrink-0 border-b border-white/[0.07] bg-[#07090F]/95 px-5 py-2">
@@ -356,10 +344,42 @@ export default function Auction() {
                 PAUSED
               </span>
             )}
+            {!isAdmin && (
+              <span className="ml-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[9px] font-bold text-white/45">
+                READ ONLY
+              </span>
+            )}
           </div>
 
-          {isAdmin && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate("/auction-summary")}
+              className="flex items-center gap-1 rounded-md border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-bold text-cyan-200 transition hover:bg-cyan-400/20">
+              <ClipboardList className="h-3 w-3" /> Summary
+            </button>
+            {isAdmin && (
+              <div className="flex overflow-hidden rounded-md border border-white/10 bg-white/[0.04]">
+                <button
+                  type="button"
+                  onClick={() => runHistoryAction("undo")}
+                  disabled={!canUndo || historyPending}
+                  title="Undo last bid or player result"
+                  className="flex items-center gap-1 border-r border-white/10 px-2.5 py-1 text-[11px] font-bold text-white/65 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <Undo2 className="h-3 w-3" /> Undo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runHistoryAction("redo")}
+                  disabled={!canRedo || historyPending}
+                  title="Redo last undone action"
+                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-white/65 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <Redo2 className="h-3 w-3" /> Redo
+                </button>
+              </div>
+            )}
+            {isAdmin && (
+              <>
               <div className="flex overflow-hidden rounded-md border border-white/10 bg-white/[0.04]">
                 {["Male", "Female"].map((g) => (
                   <button key={g} onClick={() => switchGenderMode(g)}
@@ -384,8 +404,9 @@ export default function Auction() {
                   {isLive ? "Pause" : "Resume"}
                 </button>
               )}
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -393,53 +414,8 @@ export default function Auction() {
       <div className="flex-1 overflow-hidden p-2.5">
         <div className="mx-auto flex h-full max-w-[1480px] flex-col gap-2.5">
 
-          {/* TOP 3-COL */}
-          <div className="grid flex-1 gap-2.5 overflow-hidden lg:grid-cols-[215px_1fr_252px]">
-
-            {/* LEFT: FRANCHISES */}
-            <div className="flex flex-col rounded-xl border border-white/[0.07] bg-[#0C1120]/95 p-3 overflow-hidden">
-              <h2 className="mb-2 text-[9px] font-black uppercase tracking-[0.18em] text-white/40">
-                FRANCHISES
-              </h2>
-              <div className="flex-1 space-y-1.5 overflow-y-auto pr-0.5 scrollbar-thin">
-                {enrichedFranchises.map((f) => {
-                  const fid = String(f.id);
-                  const isHighest = highestBidderFranchise && String(highestBidderFranchise.id) === fid;
-                  const isSelected = fid === String(selectedFranchiseId);
-                  const isFlashing = fid === String(flashFid);
-                  const remaining = (f.total_budget || 10000) - (f.spent_amount || 0);
-
-                  return (
-                    <motion.button
-                      key={f.id}
-                      onClick={() => placeBidForFranchise(f.id)}
-                      animate={isFlashing ? { scale: [1, 1.04, 1] } : { scale: 1 }}
-                      transition={{ duration: 0.35 }}
-                      className={`group relative flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-all ${
-                        isHighest
-                          ? "border border-amber-400 bg-amber-400/10 shadow-[0_0_12px_rgba(244,200,74,0.18)]"
-                          : isSelected
-                          ? "border border-white/20 bg-white/[0.06]"
-                          : "border border-white/[0.04] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]"
-                      }`}
-                    >
-                      <FranchiseEmblem franchise={f} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[11px] font-bold text-white">{f.name}</p>
-                        <div className="mt-0.5 flex items-center justify-between">
-                          <span className="text-[10px] font-extrabold text-amber-400">
-                            ₹ {remaining.toLocaleString("en-IN")}
-                          </span>
-                          <span className="text-[9px] text-white/25">
-                            {f.roster?.length || 0}P
-                          </span>
-                        </div>
-                      </div>
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </div>
+          {/* PLAYER + AUCTION SIDEBAR */}
+          <div className="grid flex-1 gap-2.5 overflow-hidden lg:grid-cols-[minmax(0,1fr)_320px]">
 
             {/* CENTER: PLAYER CARD */}
             <div className="flex flex-col rounded-xl border border-white/[0.07] bg-[#0C1120]/95 overflow-hidden">
@@ -522,50 +498,12 @@ export default function Auction() {
                             </div>
                           </div>
                           <InfoItem icon={GraduationCap} label="Branch" value={currentPlayer.branch} />
-                          <InfoItem icon={User} label="Sports"
-                            value={(currentPlayer.sports || []).map((s) => s.name).join(", ") || "—"} />
+                          <SportsList sports={currentPlayer.sports} />
                         </div>
                       </div>
                     </div>
 
-                    {/* Price Strip + Timer */}
-                    <div className="grid grid-cols-[1fr_1fr_96px] divide-x divide-white/[0.06] border-t border-white/[0.06] bg-[#080C16]/90 shrink-0">
-                      <div className="flex flex-col items-center justify-center py-2.5">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-white/30">BASE PRICE</span>
-                        <span className="mt-0.5 font-display text-2xl font-extrabold text-amber-400">
-                          ₹ {basePrice.toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-center justify-center py-2.5">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-white/30">CURRENT HIGHEST BID</span>
-                        {highestAmount ? (
-                          <motion.span key={highestAmount}
-                            initial={{ scale: 1.3, color: "#F4C84A" }} animate={{ scale: 1, color: "#F4C84A" }}
-                            transition={{ duration: 0.4 }}
-                            className="mt-0.5 font-display text-2xl font-extrabold text-amber-400">
-                            ₹ {highestAmount.toLocaleString("en-IN")}
-                          </motion.span>
-                        ) : (
-                          <span className="mt-0.5 font-display text-xl font-extrabold text-white/20">No bids yet</span>
-                        )}
-                        {highestBidderFranchise && (
-                          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-white/40">
-                            <FranchiseEmblem franchise={highestBidderFranchise} size="sm" className="!h-4 !w-4" />
-                            By {highestBidderFranchise.name}
-                          </div>
-                        )}
-                      </div>
-                      {/* Timer */}
-                      <div className={`flex flex-col items-center justify-center px-3 py-2.5 transition-colors ${
-                        timerDanger ? "bg-rose-500/10" : timerFlash ? "bg-amber-400/10" : ""}`}>
-                        <Timer className={`h-4 w-4 mb-0.5 ${timerDanger ? "text-rose-400" : timerFlash ? "text-amber-400" : "text-white/25"}`} />
-                        <span className={`font-display text-2xl font-extrabold tabular-nums ${
-                          timerSec === 0 ? "text-rose-500" : timerDanger ? "text-rose-400" : timerFlash ? "text-amber-400" : "text-white"}`}>
-                          {String(Math.floor(timerSec / 60)).padStart(2, "0")}:{String(timerSec % 60).padStart(2, "0")}
-                        </span>
-                        <span className="text-[7px] uppercase text-white/25">Timer</span>
-                      </div>
-                    </div>
+
                   </motion.div>
                 </AnimatePresence>
               )}
@@ -580,6 +518,11 @@ export default function Auction() {
                   UPCOMING PLAYERS
                 </h3>
                 <div className="flex-1 space-y-1.5 overflow-y-auto pr-0.5 scrollbar-thin">
+                  {upcomingList.length === 0 && (
+                    <div className="flex h-full min-h-24 items-center justify-center rounded-lg border border-dashed border-white/10 px-3 text-center text-[10px] text-white/30">
+                      No upcoming players are queued yet.
+                    </div>
+                  )}
                   {upcomingList.map((p) => (
                     <div key={p.id}
                       className="flex items-center justify-between rounded-lg border border-white/[0.04] bg-white/[0.02] p-1.5 hover:bg-white/[0.04] transition">
@@ -592,7 +535,7 @@ export default function Auction() {
                         <div className="min-w-0">
                           <p className="truncate text-[11px] font-bold text-white">{p.full_name}</p>
                           <p className="text-[9px] text-amber-400/80 font-medium leading-none">
-                            {p.role || (p.sports?.[0]?.name) || p.branch || "Player"}
+                            {p.sports?.[0]?.position || p.sports?.[0]?.name || p.branch || "Player"}
                           </p>
                         </div>
                       </div>
@@ -613,71 +556,63 @@ export default function Auction() {
                   LIVE AUCTION
                 </h3>
 
-                {/* Highest Bidder */}
+                {/* Highest bidder */}
                 <div className="mb-2">
                   <span className="text-[8px] font-extrabold uppercase tracking-wider text-white/30">
                     CURRENT HIGHEST BIDDER
                   </span>
-                  <div className="mt-1 flex min-h-[36px] items-center gap-2 rounded-lg border border-white/10 bg-[#070A0F] px-2.5 py-1.5">
+                  <div className="mt-1 flex min-h-[40px] items-center gap-2 rounded-lg border border-white/10 bg-[#070A0F] px-2.5 py-1.5">
                     {highestBidderFranchise ? (
                       <>
                         <FranchiseEmblem franchise={highestBidderFranchise} size="sm" />
                         <span className="truncate text-xs font-bold text-white">{highestBidderFranchise.name}</span>
                       </>
                     ) : (
-                      <span className="text-[10px] text-white/25">No bids yet — click BID NOW below</span>
+                      <span className="text-[10px] text-white/25">No bids yet — select a franchise below.</span>
                     )}
                   </div>
                 </div>
 
-                {/* Current Bid */}
-                <div className="mb-2">
-                  <span className="text-[8px] font-extrabold uppercase tracking-wider text-white/30">CURRENT BID</span>
-                  <p className="font-display text-xl font-extrabold leading-tight text-amber-400">
-                    {highestAmount ? `₹ ${highestAmount.toLocaleString("en-IN")}` : "—"}
-                  </p>
-                </div>
-
-                {/* Place Next Bid */}
-                <button onClick={placeNextBid}
-                  disabled={!selectedFranchiseId || !currentPlayer}
-                  className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-400 py-2 text-[10px] font-black text-black transition hover:brightness-110 active:scale-[0.98] shadow-md shadow-amber-400/20 disabled:opacity-40 disabled:cursor-not-allowed">
-                  <Gavel className="h-3.5 w-3.5" />
-                  {selectedFranchiseId
-                    ? `Place Next Bid — ${selectedF?.name || ""}`
-                    : "Select a Franchise Below"}
-                </button>
-
-                {/* Bid Adjuster */}
-                <div className="flex items-center justify-between rounded-lg border border-white/10 bg-[#070A0F] px-1.5 py-0.5 mb-2.5">
-                  <button onClick={() => setNextBidAmount(Math.max(displayNextBid - bidInc, basePrice))}
-                    className="flex h-7 w-7 items-center justify-center rounded text-white/60 hover:bg-white/10 hover:text-white">
-                    <Minus className="h-3 w-3" />
-                  </button>
-                  <span className="font-display text-sm font-extrabold text-white">
-                    ₹ {displayNextBid.toLocaleString("en-IN")}
-                  </span>
-                  <button onClick={() => setNextBidAmount(displayNextBid + bidInc)}
-                    className="flex h-7 w-7 items-center justify-center rounded text-white/60 hover:bg-white/10 hover:text-white">
-                    <Plus className="h-3 w-3" />
-                  </button>
+                {/* Current and next bid */}
+                <div className="mb-2.5 grid grid-cols-[1.25fr_0.75fr] gap-2 rounded-xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.10] to-transparent p-3">
+                  <div>
+                    <p className="text-[8px] font-black uppercase tracking-[0.16em] text-white/35">Current bid</p>
+                    <motion.p
+                      key={highestAmount ?? "opening"}
+                      initial={{ scale: 1.08 }}
+                      animate={{ scale: 1 }}
+                      className="mt-1 font-display text-4xl font-black leading-none text-amber-400"
+                    >
+                      {highestAmount ? `₹${highestAmount.toLocaleString("en-IN")}` : "—"}
+                    </motion.p>
+                  </div>
+                  <div className="border-l border-white/10 pl-3">
+                    <p className="text-[8px] font-black uppercase tracking-[0.16em] text-white/35">Next bid</p>
+                    <p className="mt-1 font-display text-2xl font-extrabold leading-none text-white">
+                      ₹{nextBidAmount.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                  <div className="col-span-2 flex items-center justify-between border-t border-white/[0.07] pt-2 text-[9px] text-white/35">
+                    <span>Base price ₹{basePrice.toLocaleString("en-IN")}</span>
+                    <span>Click a franchise card to place the next bid</span>
+                  </div>
                 </div>
 
                 {/* SOLD / UNSOLD / NEXT */}
                 <div className="flex gap-1.5">
                   <button onClick={markSold}
-                    disabled={!highestBid || !currentPlayer}
+                    disabled={!highestBid || !currentPlayer || !isAdmin}
                     title={!highestBid ? "Place a bid first" : "Mark as Sold"}
                     className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/15 py-1.5 text-[9px] font-bold text-emerald-400 transition hover:bg-emerald-500/25 disabled:opacity-35 disabled:cursor-not-allowed">
                     <CheckCircle2 className="h-3 w-3" /> SOLD
                   </button>
                   <button onClick={markUnsold}
-                    disabled={!currentPlayer}
+                    disabled={!currentPlayer || !isAdmin}
                     className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/15 py-1.5 text-[9px] font-bold text-rose-400 transition hover:bg-rose-500/25 disabled:opacity-35 disabled:cursor-not-allowed">
                     <XCircle className="h-3 w-3" /> UNSOLD
                   </button>
                   <button onClick={advanceToNextPlayer}
-                    disabled={!currentPlayer}
+                    disabled={!currentPlayer || !isAdmin}
                     title="Skip to Next Player"
                     className="flex items-center justify-center rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-white/60 transition hover:bg-white/10 hover:text-white disabled:opacity-35 disabled:cursor-not-allowed">
                     <SkipForward className="h-3.5 w-3.5" />
@@ -690,14 +625,13 @@ export default function Auction() {
           {/* BOTTOM STRIP */}
           <div className="shrink-0 rounded-xl border border-white/[0.07] bg-[#0C1120]/95 p-2.5">
             <h3 className="mb-2 text-[9px] font-black uppercase tracking-[0.18em] text-white/40">
-              BID FROM FRANCHISES
+              SELECT FRANCHISE TO PLACE NEXT BID
             </h3>
             <div className="grid grid-cols-4 gap-2 lg:grid-cols-8">
               {enrichedFranchises.map((f) => {
                 const fid      = String(f.id);
                 const isHighest = highestBidderFranchise && String(highestBidderFranchise.id) === fid;
                 const isFlashing = fid === String(flashFid);
-                const lastBid  = lastBidsMap[fid];
                 const remaining = (f.total_budget || 10000) - (f.spent_amount || 0);
 
                 return (
@@ -717,13 +651,12 @@ export default function Auction() {
                       <FranchiseEmblem franchise={f} size="sm" />
                     </div>
                     <p className="w-full truncate text-[10px] font-bold text-white leading-tight">{f.name}</p>
-                    <p className={`mt-0.5 text-[11px] font-extrabold ${lastBid ? "text-amber-400" : "text-white/30"}`}>
-                      {lastBid
-                        ? `₹ ${lastBid.toLocaleString("en-IN")}`
-                        : `₹ ${remaining.toLocaleString("en-IN")}`}
+                    <p className="mt-0.5 text-[8px] font-black uppercase tracking-wider text-white/30">Purse remaining</p>
+                    <p className="mt-0.5 text-[12px] font-extrabold text-emerald-300">
+                      ₹ {remaining.toLocaleString("en-IN")}
                     </p>
                     <button onClick={() => placeBidForFranchise(f.id)}
-                      disabled={!currentPlayer}
+                      disabled={!currentPlayer || !isAdmin || bidPending || isHighest}
                       className={`mt-1.5 w-full rounded-lg py-1 text-[9px] font-black uppercase tracking-wide transition disabled:opacity-30 disabled:cursor-not-allowed ${
                         isHighest
                           ? "bg-amber-400 text-black hover:brightness-110"
@@ -738,6 +671,35 @@ export default function Auction() {
           </div>
 
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Sports helper ── */
+function SportsList({ sports }) {
+  const values = Array.isArray(sports) ? sports.filter(Boolean) : [];
+
+  return (
+    <div className="col-span-2 flex items-start gap-2">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/[0.04]">
+        <User className="h-3.5 w-3.5 text-white/25" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[8px] font-extrabold uppercase tracking-wider text-white/30">Sports</p>
+        {values.length > 0 ? (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {values.map((sport, index) => (
+              <span key={`${sport.name || "sport"}-${index}`}
+                className="rounded-full border border-amber-400/20 bg-amber-400/[0.07] px-2 py-0.5 text-[9px] font-semibold text-amber-100/80">
+                {sport.name || "Sport"}
+                {sport.position ? ` · ${sport.position}` : ""}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-0.5 text-[11px] font-bold text-white/35">—</p>
+        )}
       </div>
     </div>
   );
