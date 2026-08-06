@@ -12,8 +12,13 @@ import {
   Menu,
   X,
   ArrowUpRight,
+  FileSpreadsheet,
+  Loader2,
 } from "lucide-react";
 import MagneticButton from "../ui/MagneticButton";
+import { downloadRegisteredPlayersWorkbook } from "../../utils/downloadRegisteredPlayersWorkbook";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../contexts/AuthContext";
 
 const NAV_LINKS = [
   { label: "Home", path: "/", icon: Home },
@@ -26,7 +31,61 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const location = useLocation();
+  const { isAdmin } = useAuth();
+
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [
+    registeredPlayersDownloading,
+    setRegisteredPlayersDownloading,
+  ] = useState(false);
+
+  const isHomeDashboard = location.pathname === "/";
+
+  const handleDownloadRegisteredPlayers = async () => {
+    if (
+      !isAdmin ||
+      !isHomeDashboard ||
+      registeredPlayersDownloading
+    ) {
+      return;
+    }
+
+    setRegisteredPlayersDownloading(true);
+
+    try {
+      const {
+        data: registrations,
+        error: registrationError,
+      } = await supabase
+        .from("player_registrations")
+        .select(
+          "id, full_name, roll_number, email, phone, gender, branch, year, sports, created_at"
+        )
+        .order("roll_number", {
+          ascending: true,
+        });
+
+      if (registrationError) {
+        throw registrationError;
+      }
+
+      await downloadRegisteredPlayersWorkbook({
+        registrations: registrations || [],
+      });
+    } catch (downloadError) {
+      console.error(
+        "Registered-player workbook download failed:",
+        downloadError
+      );
+
+      window.alert(
+        downloadError?.message ||
+          "Unable to download the registered-player spreadsheet."
+      );
+    } finally {
+      setRegisteredPlayersDownloading(false);
+    }
+  };
 
   return (
     <>
@@ -80,6 +139,28 @@ export default function Navbar() {
 
             {/* Right cluster */}
             <div className="hidden items-center gap-3 md:flex">
+              {isHomeDashboard && isAdmin && (
+                <button
+                  type="button"
+                  onClick={handleDownloadRegisteredPlayers}
+                  disabled={registeredPlayersDownloading}
+                  title="Download registered players"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-blue-400/25 bg-blue-400/10 px-3 text-[10px] font-black uppercase tracking-wide text-blue-300 transition hover:border-blue-400/40 hover:bg-blue-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {registeredPlayersDownloading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4" />
+                  )}
+
+                  <span className="hidden xl:inline">
+                    {registeredPlayersDownloading
+                      ? "Preparing..."
+                      : "Registered Players"}
+                  </span>
+                </button>
+              )}
+
               {/* Live badge */}
               <div className="flex items-center gap-2 rounded-full glass px-3 py-1.5">
                 <span className="live-dot h-2 w-2 rounded-full bg-olympus-success" />

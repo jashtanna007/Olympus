@@ -510,58 +510,47 @@ export default function Auction() {
             </div>
 
             {/* RIGHT: UPCOMING + LIVE AUCTION */}
-            <div className="flex flex-col gap-2.5 overflow-hidden">
-
-              {/* Upcoming Players */}
-              <div className="flex flex-1 flex-col rounded-xl border border-white/[0.07] bg-[#0C1120]/95 p-3 overflow-hidden">
-                <h3 className="mb-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-white/40">
+            <div className="grid h-full min-h-0 grid-rows-[106px_minmax(0,1fr)] gap-2.5 overflow-hidden">              {/* Upcoming Players */}
+              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[#0C1120]/95 px-3 py-2">
+                <h3 className="mb-1.5 shrink-0 text-[9px] font-black uppercase tracking-[0.18em] text-white/40">
                   UPCOMING PLAYERS
                 </h3>
-                <div className="flex-1 space-y-1.5 overflow-y-auto pr-0.5 scrollbar-thin">
-                  {upcomingList.length === 0 && (
-                    <div className="flex h-full min-h-24 items-center justify-center rounded-lg border border-dashed border-white/10 px-3 text-center text-[10px] text-white/30">
-                      No upcoming players are queued yet.
+
+                <div className="grid min-h-0 flex-1 grid-rows-2 gap-1 overflow-hidden">
+                  {upcomingList.length === 0 ? (
+                    <div className="row-span-2 flex items-center justify-center rounded-lg border border-dashed border-white/10 px-3 text-center text-[10px] text-white/30">
+                      No upcoming players queued.
                     </div>
-                  )}
-                  {upcomingList.map((p) => (
-                    <div key={p.id}
-                      className="flex items-center justify-between rounded-lg border border-white/[0.04] bg-white/[0.02] p-1.5 hover:bg-white/[0.04] transition">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="h-8 w-8 shrink-0 overflow-hidden rounded-md border border-white/10 bg-blue-900/30 flex items-center justify-center">
-                          {p.photo_url
-                            ? <img src={p.photo_url} alt={p.full_name} className="h-full w-full object-cover" />
-                            : <User className="h-3.5 w-3.5 text-white/20" />}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-[11px] font-bold text-white">{p.full_name}</p>
-                          <p className="text-[9px] text-amber-400/80 font-medium leading-none">
-                            {p.sports?.[0]?.position || p.sports?.[0]?.name || p.branch || "Player"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="shrink-0 ml-2 text-right">
-                        <p className="text-[7px] font-bold uppercase text-white/25">BASE</p>
-                        <p className="text-[10px] font-extrabold text-white">
-                          ₹ {(p.base_price || 200).toLocaleString("en-IN")}
+                  ) : (
+                    upcomingList.slice(0, 2).map((player, index) => (
+                      <div
+                        key={player.id}
+                        className="flex min-h-0 items-center gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.025] px-3"
+                      >
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-amber-400/10 text-[9px] font-black text-amber-400">
+                          {index + 1}
+                        </span>
+
+                        <p
+                          className="min-w-0 flex-1 truncate text-xs font-bold text-white"
+                          title={player.full_name}
+                        >
+                          {player.full_name}
                         </p>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 
               {/* Live Auction Controls */}
-              <div className="rounded-xl border border-white/[0.07] bg-[#0C1120]/95 p-3 shrink-0">
-                <h3 className="mb-2 text-[9px] font-black uppercase tracking-[0.18em] text-white/40">
-                  LIVE AUCTION
-                </h3>
-
+              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[#0C1120]/95 p-2.5">
                 {/* Highest bidder */}
-                <div className="mb-2">
-                  <span className="text-[8px] font-extrabold uppercase tracking-wider text-white/30">
+                <div className="mb-1.5 shrink-0">
+                  <span className="text-[8px] font-extrabold uppercase tracking-wider text-white/40">
                     CURRENT HIGHEST BIDDER
                   </span>
-                  <div className="mt-1 flex min-h-[40px] items-center gap-2 rounded-lg border border-white/10 bg-[#070A0F] px-2.5 py-1.5">
+                  <div className="mt-1 flex min-h-[36px] items-center gap-2 rounded-lg border border-white/10 bg-[#070A0F] px-2.5 py-1">
                     {highestBidderFranchise ? (
                       <>
                         <FranchiseEmblem franchise={highestBidderFranchise} size="sm" />
@@ -574,32 +563,29 @@ export default function Auction() {
                 </div>
 
                 {/* Current and next bid */}
-                <div className="mb-2.5 grid grid-cols-[1.25fr_0.75fr] gap-2 rounded-xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.10] to-transparent p-3">
+                <div className="mb-1.5 grid shrink-0 grid-cols-[1.25fr_0.75fr] gap-2 rounded-xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.10] to-transparent p-2.5">
                   <div>
-                    <p className="text-[8px] font-black uppercase tracking-[0.16em] text-white/35">Current bid</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/70">Current bid</p>
                     <motion.p
                       key={highestAmount ?? "opening"}
                       initial={{ scale: 1.08 }}
                       animate={{ scale: 1 }}
-                      className="mt-1 font-display text-4xl font-black leading-none text-amber-400"
+                      className="mt-1 font-display text-[44px] font-black leading-none text-amber-400"
                     >
                       {highestAmount ? `₹${highestAmount.toLocaleString("en-IN")}` : "—"}
                     </motion.p>
                   </div>
                   <div className="border-l border-white/10 pl-3">
-                    <p className="text-[8px] font-black uppercase tracking-[0.16em] text-white/35">Next bid</p>
-                    <p className="mt-1 font-display text-2xl font-extrabold leading-none text-white">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/70">Next bid</p>
+                    <p className="mt-1 font-display text-[30px] font-extrabold leading-none text-white">
                       ₹{nextBidAmount.toLocaleString("en-IN")}
                     </p>
                   </div>
-                  <div className="col-span-2 flex items-center justify-between border-t border-white/[0.07] pt-2 text-[9px] text-white/35">
-                    <span>Base price ₹{basePrice.toLocaleString("en-IN")}</span>
-                    <span>Click a franchise card to place the next bid</span>
-                  </div>
+
                 </div>
 
                 {/* SOLD / UNSOLD / NEXT */}
-                <div className="flex gap-1.5">
+                <div className="mt-auto flex shrink-0 gap-1.5 pt-1">
                   <button onClick={markSold}
                     disabled={!highestBid || !currentPlayer || !isAdmin}
                     title={!highestBid ? "Place a bid first" : "Mark as Sold"}

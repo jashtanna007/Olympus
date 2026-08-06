@@ -6,6 +6,7 @@ import {
   IndianRupee,
   ClipboardList,
   Crown,
+  Download,
   RefreshCw,
   UserRound,
   Users,
@@ -14,6 +15,8 @@ import { useNavigate } from "react-router-dom";
 import FranchiseEmblem from "../components/common/FranchiseEmblem";
 import { franchises as mockFranchises } from "../data/mockData";
 import { supabase } from "../lib/supabase";
+import { downloadAuctionWorkbook } from "../utils/downloadAuctionWorkbook";
+import { useAuth } from "../contexts/AuthContext";
 
 function getJoinedRegistration(row) {
   const raw = row?.registration || row?.player_registrations;
@@ -27,11 +30,13 @@ function formatMoney(amount) {
 
 export default function AuctionSummary() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [franchises, setFranchises] = useState([]);
   const [members, setMembers] = useState([]);
   const [auctionPlayers, setAuctionPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
 
   const loadSummary = useCallback(async ({ silent = false } = {}) => {
@@ -153,6 +158,37 @@ export default function AuctionSummary() {
     };
   }, [auctionPlayers, summary, unsoldPlayers]);
 
+  const downloadSummarySpreadsheet = useCallback(async () => {
+    if (!isAdmin || downloading) return;
+
+    setDownloading(true);
+    setError("");
+
+    try {
+      await downloadAuctionWorkbook({
+        summary,
+        unsoldPlayers,
+      });
+    } catch (downloadError) {
+      console.error(
+        "Auction workbook download failed:",
+        downloadError
+      );
+
+      setError(
+        downloadError.message ||
+          "Unable to prepare the auction spreadsheet."
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }, [
+    downloading,
+    isAdmin,
+    summary,
+    unsoldPlayers,
+  ]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#07090F] pt-20 text-white">
@@ -186,14 +222,31 @@ export default function AuctionSummary() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => loadSummary()}
-            disabled={refreshing}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-olympus-gold px-4 py-2.5 text-xs font-black text-black transition hover:brightness-110 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={downloadSummarySpreadsheet}
+                disabled={downloading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2.5 text-xs font-black text-emerald-300 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                {downloading
+                  ? "Preparing workbook..."
+                  : "Download auction summary"}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => loadSummary()}
+              disabled={refreshing}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-olympus-gold px-4 py-2.5 text-xs font-black text-black transition hover:brightness-110 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -222,18 +275,19 @@ export default function AuctionSummary() {
         <section className="mt-7 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0A0F1B]">
           <div className="border-b border-white/[0.07] px-4 py-3">
             <h2 className="font-display text-lg font-bold">Franchise purchase register</h2>
-            <p className="mt-1 text-xs text-white/35">Scroll horizontally to view all eight franchises.</p>
+            <p className="mt-1 text-xs text-white/35">
+              All eight franchises are displayed in a four-column purchase register.
+            </p>
           </div>
 
-          <div className="overflow-x-auto p-3">
-            <div className="flex min-w-max gap-3">
+          <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
               {summary.map((franchise, franchiseIndex) => (
                 <motion.article
                   key={franchise.id}
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: franchiseIndex * 0.04 }}
-                  className="w-[310px] overflow-hidden rounded-xl border bg-[#0C1120]"
+                  className="min-w-0 overflow-hidden rounded-xl border bg-[#0C1120]"
                   style={{ borderColor: `${franchise.color}45` }}
                 >
                   <header
@@ -308,7 +362,6 @@ export default function AuctionSummary() {
                   </footer>
                 </motion.article>
               ))}
-            </div>
           </div>
         </section>
 
