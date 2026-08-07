@@ -5,10 +5,13 @@ import BottomNav from "./BottomNav";
 
 // Pages that are full-screen fixed overlays — skip layout padding/animation
 const FULLSCREEN_ROUTES = ["/auction", "/retention"];
+const FULLSCREEN_PREFIXES = ["/scorer"];
 
 export default function GlobalLayout() {
   const location = useLocation();
-  const isFullscreen = FULLSCREEN_ROUTES.includes(location.pathname);
+  const isFullscreen =
+    FULLSCREEN_ROUTES.includes(location.pathname) ||
+    FULLSCREEN_PREFIXES.some((p) => location.pathname.startsWith(p));
 
   return (
     <div className="relative min-h-screen bg-olympus-bg">
@@ -47,7 +50,7 @@ export default function GlobalLayout() {
       {isFullscreen ? (
         <Outlet />
       ) : (
-        <main className="relative z-10 bottom-nav-safe-area">
+        <main className="relative z-10 pt-20 sm:pt-24 bottom-nav-safe-area">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

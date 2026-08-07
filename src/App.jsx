@@ -13,6 +13,8 @@ import Home from "./pages/Home";
 import Leaderboard from "./pages/Leaderboard";
 import Login from "./pages/Login";
 import Matches from "./pages/Matches";
+import MatchLive from "./pages/MatchLive";
+import ScorerConsole from "./pages/ScorerConsole";
 import Profile from "./pages/Profile";
 import Registration from "./pages/Registration";
 import Auction from "./pages/Auction";
@@ -41,6 +43,14 @@ export default function App() {
               <Route
                 path="/matches"
                 element={<Matches />}
+              />
+              <Route
+                path="/matches/:matchId"
+                element={<MatchLive />}
+              />
+              <Route
+                path="/scorer/:matchId"
+                element={<ScorerConsole />}
               />
               <Route
                 path="/leaderboard"
