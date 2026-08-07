@@ -117,11 +117,32 @@ GRANT ALL ON public.auction_players TO service_role;
 GRANT ALL ON public.auction_bids TO service_role;
 
 -- ============================================================
--- 7. ENABLE REALTIME on auction tables
+-- 7. ENABLE REALTIME on auction tables (Idempotent)
 -- ============================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.auction_config;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.auction_players;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.auction_bids;
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.auction_config;
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN undefined_object THEN NULL;
+    WHEN OTHERS THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.auction_players;
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN undefined_object THEN NULL;
+    WHEN OTHERS THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.auction_bids;
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN undefined_object THEN NULL;
+    WHEN OTHERS THEN NULL;
+  END;
+END $$;
 
 -- ============================================================
 -- 8. SEED: Insert default auction config row
