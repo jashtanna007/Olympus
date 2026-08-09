@@ -107,3 +107,7 @@ dist-ssr/
 *.njsproj
 *.sln
 *.sw?
+
+# Local agent plan files
+.kilo/
+
