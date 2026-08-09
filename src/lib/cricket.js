@@ -152,6 +152,7 @@ export async function createMatch({
   venue = null,
   scheduledAt = null,
   assignedScorerId = null,
+  config = {},
 }) {
   const { data: userData } = await supabase.auth.getUser();
   const { data, error } = await supabase
@@ -165,6 +166,7 @@ export async function createMatch({
       venue,
       scheduled_at: scheduledAt,
       assigned_scorer_id: assignedScorerId,
+      config,
       created_by: userData?.user?.id ?? null,
     })
     .select("*")
@@ -234,8 +236,6 @@ export const recordBall = (inningsId, opts = {}) =>
     p_runs_extra: opts.runsExtra ?? 0,
     p_wagon_angle: opts.wagonAngle ?? null,
     p_wagon_distance: opts.wagonDistance ?? null,
-    p_pitch_x: opts.pitchX ?? null,
-    p_pitch_y: opts.pitchY ?? null,
   });
 
 export const recordWicket = (inningsId, opts = {}) =>
@@ -247,8 +247,6 @@ export const recordWicket = (inningsId, opts = {}) =>
     p_runs_batter: opts.runsBatter ?? 0,
     p_wagon_angle: opts.wagonAngle ?? null,
     p_wagon_distance: opts.wagonDistance ?? null,
-    p_pitch_x: opts.pitchX ?? null,
-    p_pitch_y: opts.pitchY ?? null,
   });
 
 export const setNewBatsman = (inningsId, batsmanId, end = null) =>

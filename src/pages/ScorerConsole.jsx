@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, RotateCcw, Repeat, Crown, Loader2, CheckCircle2, Users, Plus, Trash2, Camera,
+  Zap, Target, Sparkles,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useCricketMatch } from "../hooks/useCricketMatch";
@@ -530,7 +531,9 @@ export default function ScorerConsole() {
                       !captureShot ? "bg-white/15 text-white shadow-md border border-white/20" : "bg-white/5 text-white/40 hover:text-white/70"
                     }`}
                   >
-                    ⚡ Fast Score (No Shots)
+                    <span className="flex items-center justify-center gap-1.5">
+                      <Zap className="h-3.5 w-3.5" /> Fast Score (No Shots)
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -539,12 +542,12 @@ export default function ScorerConsole() {
                       captureShot ? "bg-olympus-gold text-olympus-bg font-extrabold shadow-md shadow-olympus-gold/20" : "bg-white/5 text-white/40 hover:text-white/70"
                     }`}
                   >
-                    🎯 Shot &amp; Pitch Tracking
+                    <Target className="h-3.5 w-3.5" /> Shot Tracking
                   </button>
                 </div>
                 {captureShot && (
-                  <p className="mt-2 text-center text-[10px] font-semibold text-olympus-gold">
-                    ✨ Tapping run buttons will show Wagon Wheel &amp; Pitch Map for spectators!
+                  <p className="mt-2 flex items-center justify-center gap-1 text-center text-[10px] font-semibold text-olympus-gold">
+                    <Sparkles className="h-3 w-3" /> Tapping run buttons will show the Wagon Wheel for spectators!
                   </p>
                 )}
               </div>

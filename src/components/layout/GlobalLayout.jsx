@@ -50,7 +50,7 @@ export default function GlobalLayout() {
       {isFullscreen ? (
         <Outlet />
       ) : (
-        <main className="relative z-10 pt-20 sm:pt-24 bottom-nav-safe-area">
+        <main className="relative z-10 pt-[76px] sm:pt-[84px] bottom-nav-safe-area">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

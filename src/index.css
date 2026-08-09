@@ -35,6 +35,11 @@
     0 0 40px -6px rgba(244, 200, 74, 0.4);
   --shadow-glow-blue: 0 0 0 1px rgba(79, 157, 255, 0.25),
     0 0 40px -6px rgba(79, 157, 255, 0.4);
+
+  /* ─── Layout constants ─── */
+  --nav-h-mobile: 72px;   /* h-14 + pt-4 wrapper */
+  --nav-h-desktop: 80px;  /* h-16 + pt-4 wrapper */
+  --bottom-nav-h: 64px;   /* h-16 */
 }
 
 /* ═══════════ Global Reset ═══════════ */
@@ -73,6 +78,7 @@ body {
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .font-display {
@@ -306,7 +312,8 @@ a:focus-visible {
 /* ═══════════ Bottom Nav ═══════════ */
 
 .bottom-nav-safe-area {
-  padding-bottom: 80px;
+  /* 64px nav + 16px breathing room + iOS safe area */
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 768px) {
   .bottom-nav-safe-area {
@@ -329,3 +336,15 @@ a:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Dark-theme date/time inputs: keep the native picker visible */
+input[type='datetime-local'],
+input[type='date'] {
+  color-scheme: dark;
+}
+input[type='datetime-local']::-webkit-calendar-picker-indicator,
+input[type='date']::-webkit-calendar-picker-indicator {
+  opacity: 0.85;
+  cursor: pointer;
+}
+

@@ -282,7 +282,7 @@ export function deriveInnings(innings, deliveries, match, playerMap) {
     worm.push({ over: agg.over, runs: cumulative });
   }
 
-  /* ── Wagon wheel + pitch map points ── */
+  /* ── Wagon wheel points ── */
   const wagonPoints = balls
     .filter((d) => d.wagon_angle != null && d.wagon_distance != null)
     .map((d) => ({
@@ -291,15 +291,6 @@ export function deriveInnings(innings, deliveries, match, playerMap) {
       distance: d.wagon_distance,
       runs: d.runs_batter,
       isBoundary: d.runs_batter === 4 || d.runs_batter === 6,
-    }));
-  const pitchPoints = balls
-    .filter((d) => d.pitch_x != null && d.pitch_y != null)
-    .map((d) => ({
-      id: d.id,
-      x: d.pitch_x,
-      y: d.pitch_y,
-      isWicket: d.is_wicket,
-      runs: d.runs_batter,
     }));
 
   /* ── Projected score (1st innings) ── */
@@ -341,7 +332,6 @@ export function deriveInnings(innings, deliveries, match, playerMap) {
     manhattan,
     worm,
     wagonPoints,
-    pitchPoints,
     striker: innings.striker_id ? playerMap[innings.striker_id] : null,
     nonStriker: innings.non_striker_id ? playerMap[innings.non_striker_id] : null,
     bowler: innings.current_bowler_id ? playerMap[innings.current_bowler_id] : null,
