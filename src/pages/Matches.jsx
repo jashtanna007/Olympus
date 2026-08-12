@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -221,15 +222,25 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
     }
   };
 
-  return (
+  return createPortal(
     <AnimatePresence>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4">
-        <motion.div initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }} className="w-full max-w-md overflow-hidden rounded-2xl glass-strong">
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[500] flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center sm:py-6"
+      >
+        <motion.div
+          initial={{ y: 24, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 24, opacity: 0 }}
+          className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl glass-strong sm:max-h-[calc(100dvh-3rem)]"
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
             <h3 className="font-display text-base font-bold text-white">Create match</h3>
             <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10"><X className="h-4 w-4" /></button>
           </div>
-          <div className="max-h-[70vh] space-y-3 overflow-y-auto p-4 scrollbar-thin">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 scrollbar-thin">
             <Field label="Sport">
               <div className="grid grid-cols-3 gap-1.5">
                 {SPORT_OPTIONS.map((s) => (
@@ -417,14 +428,15 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
               </select>
             </Field>
           </div>
-          <div className="border-t border-white/10 p-4">
+          <div className="shrink-0 border-t border-white/10 p-4">
             <button onClick={submit} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-olympus-gold py-3 text-sm font-bold text-olympus-bg hover:brightness-110 disabled:opacity-50">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create match
             </button>
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 
