@@ -137,7 +137,6 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
   const [rallyPoints, setRallyPoints] = useState(21);
   // Chess
   const [timeControl, setTimeControl] = useState("5+0 blitz");
-  const [armageddon, setArmageddon] = useState(false);
   // Carrom
   const [carromBoards, setCarromBoards] = useState(1);
   const [queenPoints, setQueenPoints] = useState(3);
@@ -180,7 +179,9 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
       case "Table Tennis":
         return { games: Number(rallyGames), points_per_game: Number(rallyPoints), deuce_cap: null };
       case "Chess":
-        return { time_control: timeControl || null, armageddon: Boolean(armageddon) };
+        return {
+          time_control: timeControl || null,
+        };
       case "Carrom":
         return { boards: Number(carromBoards), queen_points: Number(queenPoints) };
       case "Kabaddi":
@@ -337,10 +338,7 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
                 <Field label="Time control">
                   <input value={timeControl} onChange={(e) => setTimeControl(e.target.value)} className={inputCls} placeholder="e.g. 5+0 blitz" />
                 </Field>
-                <label className="flex items-center gap-2 text-xs text-white/80">
-                  <input type="checkbox" checked={armageddon} onChange={(e) => setArmageddon(e.target.checked)} className="h-4 w-4 rounded border-white/20 bg-white/5 accent-olympus-gold" />
-                  Allow Armageddon decider on a draw
-                </label>
+
               </div>
             )}
             {sport === "Carrom" && (

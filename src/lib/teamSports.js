@@ -246,12 +246,22 @@ export const carromCompleteMatch = (matchId) =>
   rpc("carrom_complete_match", { p_match_id: matchId });
 
 /* ══════════ Relay ══════════ */
-export const relayRecordTime = (matchId, teamFranchiseId, seconds, legs = []) =>
+export const relayRecordTime = (
+  matchId,
+  teamFranchiseId,
+  seconds,
+  legs = []
+) =>
   rpc("relay_record_time", {
     p_match_id: matchId,
     p_team_franchise_id: teamFranchiseId,
     p_seconds: seconds,
     p_legs: JSON.stringify(legs),
+  });
+
+export const relayCompleteMatch = (matchId) =>
+  rpc("relay_complete_match", {
+    p_match_id: matchId,
   });
 
 /* ══════════ Arm Wrestling ══════════ */
@@ -611,13 +621,28 @@ export function deriveCarrom(match, events) {
   const pointsFor = (fid) =>
     rows.filter((r) => r.team_franchise_id === fid).reduce((s, r) => s + Number(r.value || 0), 0);
 
+  const boardsWonA =
+    boards.filter((bd) => bd.winner === aId).length;
+
+  const boardsWonB =
+    boards.filter((bd) => bd.winner === bId).length;
+
+  const boardsNeeded =
+    Math.floor(numBoards / 2) + 1;
+
+  const matchDecided =
+    boardsWonA >= boardsNeeded ||
+    boardsWonB >= boardsNeeded;
+
   return {
     boards,
     currentBoard,
     numBoards,
     queenPoints,
-    boardsWonA: boards.filter((bd) => bd.winner === aId).length,
-    boardsWonB: boards.filter((bd) => bd.winner === bId).length,
+    boardsWonA,
+    boardsWonB,
+    boardsNeeded,
+    matchDecided,
     pointsA: pointsFor(aId),
     pointsB: pointsFor(bId),
     timeline: rows.slice().reverse(),

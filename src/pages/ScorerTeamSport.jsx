@@ -26,8 +26,8 @@ import {
   rallyRecordPoint,
   kabaddiRecordEvent,
   chessRecordResult,
-  carromRecordEvent, carromCompleteMatch,
-  relayRecordTime,
+  carromRecordEvent,
+  relayRecordTime, relayCompleteMatch,
   armWrestlingRecordPull,
   sportEventRecord, sportEventUndo,
 } from "../lib/teamSports";
@@ -336,6 +336,16 @@ export default function ScorerTeamSport() {
       return;
     }
 
+    if (
+      sport === "Carrom" &&
+      !d?.matchDecided
+    ) {
+      alert(
+        `A side must win ${d?.boardsNeeded ?? 1} boards before the match can finish.`
+      );
+      return;
+    }
+
     if (sport === "Basketball") {
       if (
         (d?.currentQuarter ?? 1) <
@@ -376,9 +386,39 @@ export default function ScorerTeamSport() {
   const finish = () => {
     if (match.sport === "Football") {
       handleFootballFinish();
-    } else {
-      handleGenericFinish(match.sport, derived);
+      return;
     }
+
+    if (match.sport === "Relay") {
+      if (!derived?.complete) {
+        alert(
+          "Record both relay finish times before completing the match."
+        );
+        return;
+      }
+
+      const summary =
+        `${formatTime(derived.timeA)} vs ${formatTime(derived.timeB)}`;
+
+      if (
+        window.confirm(
+          `Finalize this Relay result? ${summary}. Once finalized, scorer edits are locked.`
+        )
+      ) {
+        void run(() =>
+          relayCompleteMatch(
+            match.id
+          )
+        );
+      }
+
+      return;
+    }
+
+    handleGenericFinish(
+      match.sport,
+      derived
+    );
   };
 
   return (
@@ -474,15 +514,26 @@ export default function ScorerTeamSport() {
               )}
 
               {/* ── Finish match button (hidden during penalty shootout) ── */}
-              {!(match.sport === "Football" && footballPhase === "pen") && (
-                <button
-                  onClick={finish}
-                  disabled={busy}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-olympus-gold/40 bg-olympus-gold/10 py-3 text-sm font-bold text-olympus-gold transition hover:bg-olympus-gold/20 disabled:opacity-40"
-                >
-                  <Trophy className="h-4 w-4" /> Finish match
-                </button>
-              )}
+              {!(
+                match.sport === "Football" &&
+                footballPhase === "pen"
+              ) &&
+                match.sport !== "Chess" && (
+                  <button
+                    onClick={finish}
+                    disabled={
+                      busy ||
+                      (
+                        match.sport === "Relay" &&
+                        !derived?.complete
+                      )
+                    }
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-olympus-gold/40 bg-olympus-gold/10 py-3 text-sm font-bold text-olympus-gold transition hover:bg-olympus-gold/20 disabled:opacity-40"
+                  >
+                    <Trophy className="h-4 w-4" />
+                    Finish match
+                  </button>
+                )}
             </>
           )}
         </div>
@@ -1245,21 +1296,88 @@ function KabaddiPanel({ match, fa, fb, derived, busy, run }) {
 /* ────────────────────────────────────────────────────────── */
 /*  Chess panel                                               */
 /* ────────────────────────────────────────────────────────── */
-function ChessPanel({ match, fa, fb, derived, busy, run }) {
+function ChessPanel({
+  match,
+  fa,
+  fb,
+  derived,
+  busy,
+  run,
+}) {
   const { result } = derived || {};
   const [reason, setReason] = useState("");
 
+  const winReasons = new Set([
+    "",
+    "mate",
+    "resign",
+    "timeout",
+    "other",
+  ]);
+
+  const drawReasons = new Set([
+    "",
+    "agreement",
+    "stalemate",
+    "insufficient_material",
+    "fifty_move",
+    "other",
+  ]);
+
   const record = (res) => {
-    void run(() => chessRecordResult(match.id, res, reason || null));
+    if (
+      res === "draw" &&
+      !drawReasons.has(reason)
+    ) {
+      alert(
+        "The selected reason is a win reason. Select a draw reason first."
+      );
+      return;
+    }
+
+    if (
+      res !== "draw" &&
+      !winReasons.has(reason)
+    ) {
+      alert(
+        "The selected reason is a draw reason. Select a win reason first."
+      );
+      return;
+    }
+
+    void run(() =>
+      chessRecordResult(
+        match.id,
+        res,
+        reason || null
+      )
+    );
   };
 
   if (result) {
-    const label = result.value === "a" ? fa?.name : result.value === "b" ? fb?.name : "Draw";
+    const winnerId =
+      result.team_franchise_id || null;
+
+    const label = winnerId === match.franchise_a_id
+      ? fa?.name
+      : winnerId === match.franchise_b_id
+        ? fb?.name
+        : "Draw";
+
     return (
       <div className="rounded-2xl glass-strong p-8 text-center">
         <Crown className="mx-auto mb-3 h-10 w-10 text-olympus-gold" />
-        <p className="font-display text-lg font-bold text-white">Result recorded</p>
-        <p className="mt-1 text-sm text-olympus-muted">{label}{result.label ? ` — ${result.label}` : ""}</p>
+
+        <p className="font-display text-lg font-bold text-white">
+          Result recorded
+        </p>
+
+        <p className="mt-1 text-sm text-olympus-muted">
+          {label}
+          {result.label
+            ? ` — ${result.label}`
+            : ""}
+        </p>
       </div>
     );
   }
@@ -1269,49 +1387,112 @@ function ChessPanel({ match, fa, fb, derived, busy, run }) {
       <div className="rounded-2xl glass-strong p-5">
         <div className="flex items-center justify-center gap-8">
           <div className="flex flex-1 flex-col items-center gap-2">
-            {fa && <FranchiseEmblem franchise={fa} size="lg" />}
-            <span className="text-xs font-bold text-white">{fa?.name}</span>
+            {fa && (
+              <FranchiseEmblem
+                franchise={fa}
+                size="lg"
+              />
+            )}
+            <span className="text-xs font-bold text-white">
+              {fa?.name}
+            </span>
           </div>
+
           <Crown className="h-8 w-8 text-olympus-gold" />
+
           <div className="flex flex-1 flex-col items-center gap-2">
-            {fb && <FranchiseEmblem franchise={fb} size="lg" />}
-            <span className="text-xs font-bold text-white">{fb?.name}</span>
+            {fb && (
+              <FranchiseEmblem
+                franchise={fb}
+                size="lg"
+              />
+            )}
+            <span className="text-xs font-bold text-white">
+              {fb?.name}
+            </span>
           </div>
         </div>
       </div>
 
       <div className="rounded-xl glass p-4">
-        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-olympus-muted">Reason (optional)</p>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-olympus-muted">
+          Result reason
+        </p>
+
         <select
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) =>
+            setReason(e.target.value)
+          }
           className="w-full rounded-lg border border-white/10 bg-[#0C1120] px-3 py-2 text-sm text-white focus:border-olympus-gold/50 focus:outline-none"
         >
-          <option value="">— select —</option>
-          <option value="Checkmate">Checkmate</option>
-          <option value="Resignation">Resignation</option>
-          <option value="Time forfeit">Time forfeit</option>
-          <option value="Stalemate">Stalemate (Draw)</option>
-          <option value="Mutual agreement">Mutual agreement (Draw)</option>
-          <option value="Insufficient material">Insufficient material (Draw)</option>
-          <option value="50-move rule">50-move rule (Draw)</option>
+          <option value="">
+            — select —
+          </option>
+
+          <optgroup label="Win reasons">
+            <option value="mate">
+              Checkmate
+            </option>
+            <option value="resign">
+              Resignation
+            </option>
+            <option value="timeout">
+              Time forfeit
+            </option>
+          </optgroup>
+
+          <optgroup label="Draw reasons">
+            <option value="stalemate">
+              Stalemate
+            </option>
+            <option value="agreement">
+              Mutual agreement
+            </option>
+            <option value="insufficient_material">
+              Insufficient material
+            </option>
+            <option value="fifty_move">
+              50-move rule
+            </option>
+          </optgroup>
+
+          <option value="other">
+            Other
+          </option>
         </select>
       </div>
 
       <div className="space-y-2">
-        <p className="text-center text-xs font-bold uppercase tracking-wider text-olympus-muted">Declare result</p>
+        <p className="text-center text-xs font-bold uppercase tracking-wider text-olympus-muted">
+          Declare result
+        </p>
+
         <div className="grid grid-cols-3 gap-2">
-          <ActionButton disabled={busy} onClick={() => record("a")}
-            className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20">
-            <Check className="h-4 w-4" /> {fa?.short}
+          <ActionButton
+            disabled={busy}
+            onClick={() => record("a")}
+            className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+          >
+            <Check className="h-4 w-4" />
+            {fa?.short}
           </ActionButton>
-          <ActionButton disabled={busy} onClick={() => record("draw")}
-            className="border-olympus-gold/40 bg-olympus-gold/10 text-olympus-gold hover:bg-olympus-gold/20">
+
+          <ActionButton
+            disabled={busy}
+            onClick={() => record("draw")}
+            className="border-olympus-gold/40 bg-olympus-gold/10 text-olympus-gold hover:bg-olympus-gold/20"
+          >
             Draw
           </ActionButton>
-          <ActionButton disabled={busy} onClick={() => record("b")}
-            className="border-olympus-blue/40 bg-olympus-blue/10 text-olympus-blue hover:bg-olympus-blue/20">
-            <Check className="h-4 w-4" /> {fb?.short}
+
+          <ActionButton
+            disabled={busy}
+            onClick={() => record("b")}
+            className="border-olympus-blue/40 bg-olympus-blue/10 text-olympus-blue hover:bg-olympus-blue/20"
+          >
+            <Check className="h-4 w-4" />
+            {fb?.short}
           </ActionButton>
         </div>
       </div>
@@ -1322,69 +1503,210 @@ function ChessPanel({ match, fa, fb, derived, busy, run }) {
 /* ────────────────────────────────────────────────────────── */
 /*  Carrom panel                                              */
 /* ────────────────────────────────────────────────────────── */
-function CarromPanel({ match, fa, fb, derived, busy, run }) {
-  const { boards = [], currentBoard = 1, boardsWonA = 0, boardsWonB = 0, queenPoints = 3, numBoards = 1 } = derived || {};
-  const [piecesModal, setPiecesModal] = useState(null); // { teamId, teamName }
+function CarromPanel({
+  match,
+  fa,
+  fb,
+  derived,
+  busy,
+  run,
+}) {
+  const {
+    boards = [],
+    currentBoard = 1,
+    boardsWonA = 0,
+    boardsWonB = 0,
+    boardsNeeded = 1,
+    matchDecided = false,
+    queenPoints = 3,
+    numBoards = 1,
+  } = derived || {};
 
-  const currentBoardData = boards.find((b) => b.board === currentBoard) || { a: 0, b: 0, winner: null };
+  const [piecesModal, setPiecesModal] =
+    useState(null);
 
-  const recordPieces = (teamId, teamName) => setPiecesModal({ teamId, teamName });
-  const confirmPieces = ({ player: piecesStr }) => {
+  const currentBoardData =
+    boards.find(
+      (board) =>
+        board.board === currentBoard
+    ) || {
+      a: 0,
+      b: 0,
+      winner: null,
+    };
+
+  const boardFinished =
+    Boolean(currentBoardData.winner);
+
+  const recordPieces = (
+    teamId,
+    teamName
+  ) => {
+    setPiecesModal({
+      teamId,
+      teamName,
+    });
+  };
+
+  const confirmPieces = ({
+    player: piecesStr,
+  }) => {
     if (!piecesModal) return;
-    const pieces = parseInt(piecesStr, 10) || 1;
+
+    const pieces =
+      Number.parseInt(piecesStr, 10);
+
+    if (
+      !Number.isInteger(pieces) ||
+      pieces < 1 ||
+      pieces > 9
+    ) {
+      alert(
+        "Enter a whole number of pieces from 1 to 9."
+      );
+      return;
+    }
+
+    const teamId =
+      piecesModal.teamId;
+
     setPiecesModal(null);
-    void run(() =>
-      sportEventRecord(match.id, {
-        period: currentBoard,
-        kind: "piece",
-        teamFranchiseId: piecesModal.teamId,
-        value: pieces,
-        label: `${pieces} piece${pieces > 1 ? "s" : ""}`,
-      })
-    );
+
+    void run(async () => {
+      for (
+        let index = 0;
+        index < pieces;
+        index += 1
+      ) {
+        await carromRecordEvent(
+          match.id,
+          teamId,
+          "point"
+        );
+      }
+    });
   };
 
   const recordQueen = (teamId) =>
-    run(() => sportEventRecord(match.id, { period: currentBoard, kind: "queen", teamFranchiseId: teamId, value: queenPoints, label: `Queen (+${queenPoints})` }));
+    run(() =>
+      carromRecordEvent(
+        match.id,
+        teamId,
+        "queen"
+      )
+    );
+
+  const recordFoul = (teamId) =>
+    run(() =>
+      carromRecordEvent(
+        match.id,
+        teamId,
+        "foul"
+      )
+    );
 
   const recordBoardWin = (teamId) => {
-    if (window.confirm(`${teamId === match.franchise_a_id ? fa?.name : fb?.name} wins Board ${currentBoard}?`)) {
+    const teamName =
+      teamId === match.franchise_a_id
+        ? fa?.name
+        : fb?.name;
+
+    if (
+      window.confirm(
+        `${teamName} wins Board ${currentBoard}?`
+      )
+    ) {
       void run(() =>
-        sportEventRecord(match.id, { period: currentBoard, kind: "board_win", teamFranchiseId: teamId, label: `Board ${currentBoard} won` })
+        carromRecordEvent(
+          match.id,
+          teamId,
+          "board_win"
+        )
       );
     }
   };
 
   return (
     <>
-      <TeamHeader fa={fa} fb={fb} scoreA={boardsWonA} scoreB={boardsWonB}
+      <TeamHeader
+        fa={fa}
+        fb={fb}
+        scoreA={boardsWonA}
+        scoreB={boardsWonB}
         center={
           <div className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
-            <Target className="h-3 w-3" /> Board {currentBoard}
+            <Target className="h-3 w-3" />
+            Board {currentBoard}
           </div>
         }
       />
 
+      {matchDecided && (
+        <InfoBanner color="gold">
+          <Trophy className="h-4 w-4" />
+          Match decided — first to{" "}
+          {boardsNeeded} boards reached.
+        </InfoBanner>
+      )}
+
       <div className="rounded-xl glass p-3 text-center">
         <p className="text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
-          Board {currentBoard} — points: {currentBoardData.a} / {currentBoardData.b}
+          Board {currentBoard} — points:{" "}
+          {currentBoardData.a} /{" "}
+          {currentBoardData.b}
         </p>
-        <p className="mt-1 text-[10px] text-olympus-muted">Queen = {queenPoints} pts · Pocket all pieces to win board</p>
+
+        <p className="mt-1 text-[10px] text-olympus-muted">
+          Queen = {queenPoints} pts ·
+          Pocket all 9 pieces before
+          declaring the board winner
+        </p>
       </div>
 
-      {/* Board navigation */}
       <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#0C1120] px-3 py-2">
-        <span className="text-xs font-bold text-white">Board {currentBoard} of {numBoards}</span>
+        <span className="text-xs font-bold text-white">
+          Board {currentBoard} of{" "}
+          {numBoards}
+        </span>
+
         <div className="flex items-center gap-2">
-          <button disabled={busy || currentBoard <= 1}
-            onClick={() => run(() => setTeamSportPeriod(match.id, currentBoard - 1))}
-            className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-white/70 hover:bg-white/10 disabled:opacity-30">
+          <button
+            disabled={
+              busy ||
+              currentBoard <= 1
+            }
+            onClick={() =>
+              run(() =>
+                setTeamSportPeriod(
+                  match.id,
+                  currentBoard - 1
+                )
+              )
+            }
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-white/70 hover:bg-white/10 disabled:opacity-30"
+          >
             <Minus className="h-3.5 w-3.5" />
           </button>
-          <span className="w-6 text-center font-display text-sm font-bold text-olympus-gold">{currentBoard}</span>
-          <button disabled={busy || currentBoard >= numBoards}
-            onClick={() => run(() => setTeamSportPeriod(match.id, currentBoard + 1))}
-            className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-white/70 hover:bg-white/10 disabled:opacity-30">
+
+          <span className="w-6 text-center font-display text-sm font-bold text-olympus-gold">
+            {currentBoard}
+          </span>
+
+          <button
+            disabled={
+              busy ||
+              currentBoard >= numBoards
+            }
+            onClick={() =>
+              run(() =>
+                setTeamSportPeriod(
+                  match.id,
+                  currentBoard + 1
+                )
+              )
+            }
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-white/70 hover:bg-white/10 disabled:opacity-30"
+          >
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -1392,34 +1714,116 @@ function CarromPanel({ match, fa, fb, derived, busy, run }) {
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          { f: fa, id: match.franchise_a_id, accent: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" },
-          { f: fb, id: match.franchise_b_id, accent: "border-olympus-blue/40 bg-olympus-blue/10 text-olympus-blue hover:bg-olympus-blue/20" },
-        ].map(({ f, id, accent }) => (
-          <div key={id} className="space-y-2 rounded-xl glass p-3">
-            <p className="truncate text-center text-xs font-bold text-white">{f?.short || f?.name}</p>
-            <ActionButton disabled={busy} onClick={() => recordPieces(id, f?.name)} className={`w-full ${accent}`}>
-              <Plus className="h-4 w-4" /> Pieces
-            </ActionButton>
-            <ActionButton disabled={busy} onClick={() => recordQueen(id)}
-              className="w-full border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20">
-              <Crown className="h-4 w-4" /> Queen (+{queenPoints})
-            </ActionButton>
-            <ActionButton disabled={busy} onClick={() => recordBoardWin(id)}
-              className="w-full border-olympus-gold/40 bg-olympus-gold/10 text-olympus-gold hover:bg-olympus-gold/20">
-              <Trophy className="h-4 w-4" /> Win Board
-            </ActionButton>
-          </div>
-        ))}
+          {
+            f: fa,
+            id: match.franchise_a_id,
+            accent:
+              "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20",
+          },
+          {
+            f: fb,
+            id: match.franchise_b_id,
+            accent:
+              "border-olympus-blue/40 bg-olympus-blue/10 text-olympus-blue hover:bg-olympus-blue/20",
+          },
+        ].map(
+          ({
+            f,
+            id,
+            accent,
+          }) => (
+            <div
+              key={id}
+              className="space-y-2 rounded-xl glass p-3"
+            >
+              <p className="truncate text-center text-xs font-bold text-white">
+                {f?.short || f?.name}
+              </p>
+
+              <ActionButton
+                disabled={
+                  busy ||
+                  boardFinished ||
+                  matchDecided
+                }
+                onClick={() =>
+                  recordPieces(
+                    id,
+                    f?.name
+                  )
+                }
+                className={`w-full ${accent}`}
+              >
+                <Plus className="h-4 w-4" />
+                Pieces
+              </ActionButton>
+
+              <ActionButton
+                disabled={
+                  busy ||
+                  boardFinished ||
+                  matchDecided
+                }
+                onClick={() =>
+                  recordQueen(id)
+                }
+                className="w-full border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+              >
+                <Crown className="h-4 w-4" />
+                Queen (+{queenPoints})
+              </ActionButton>
+
+              <ActionButton
+                disabled={
+                  busy ||
+                  boardFinished ||
+                  matchDecided
+                }
+                onClick={() =>
+                  recordFoul(id)
+                }
+                className="w-full border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
+              >
+                <X className="h-4 w-4" />
+                Foul (-1)
+              </ActionButton>
+
+              <ActionButton
+                disabled={
+                  busy ||
+                  boardFinished ||
+                  matchDecided
+                }
+                onClick={() =>
+                  recordBoardWin(id)
+                }
+                className="w-full border-olympus-gold/40 bg-olympus-gold/10 text-olympus-gold hover:bg-olympus-gold/20"
+              >
+                <Trophy className="h-4 w-4" />
+                Win Board
+              </ActionButton>
+            </div>
+          )
+        )}
       </div>
 
-      <UndoButton busy={busy} onClick={() => run(() => sportEventUndo(match.id))} />
+      <UndoButton
+        busy={busy}
+        onClick={() =>
+          run(() =>
+            sportEventUndo(match.id)
+          )
+        }
+      />
 
       {piecesModal && (
         <EventModal
           title={`Pieces pocketed — ${piecesModal.teamName}`}
           showPlayer
-          playerLabel="Number of pieces (e.g. 3)"
-          onCancel={() => setPiecesModal(null)}
+          playerLabel="Number of pieces (1–9)"
+          onCancel={() =>
+            setPiecesModal(null)
+          }
           onConfirm={confirmPieces}
         />
       )}
@@ -1437,70 +1841,271 @@ function formatTime(secs) {
   return m > 0 ? `${m}:${s}` : `${Number(s).toFixed(2)}s`;
 }
 
-function RelayPanel({ match, fa, fb, derived, busy, run }) {
-  const { timeA, timeB, legs = 4, complete, deadHeat, leaderId } = derived || {};
-  const [timeInput, setTimeInput] = useState({ a: "", b: "" });
+function RelayPanel({
+  match,
+  fa,
+  fb,
+  derived,
+  busy,
+  run,
+}) {
+  const {
+    timeA,
+    timeB,
+    legs = 4,
+    complete,
+    deadHeat,
+    leaderId,
+  } = derived || {};
 
-  const recordTime = async (teamKey, fid) => {
-    const raw = timeInput[teamKey].trim();
-    if (!raw) return;
-    // Accept formats: "1:23.45" or "83.45"
-    let secs;
-    if (raw.includes(":")) {
-      const [m, s] = raw.split(":");
-      secs = parseInt(m, 10) * 60 + parseFloat(s);
-    } else {
-      secs = parseFloat(raw);
+  const [timeInput, setTimeInput] =
+    useState({
+      a: "",
+      b: "",
+    });
+
+  const [editing, setEditing] =
+    useState({
+      a: false,
+      b: false,
+    });
+
+  const parseTime = (raw) => {
+    const value = raw.trim();
+
+    if (!value) return null;
+
+    if (value.includes(":")) {
+      const parts = value.split(":");
+
+      if (parts.length !== 2) {
+        return null;
+      }
+
+      const minutes =
+        Number.parseInt(parts[0], 10);
+
+      const seconds =
+        Number.parseFloat(parts[1]);
+
+      if (
+        !Number.isInteger(minutes) ||
+        minutes < 0 ||
+        !Number.isFinite(seconds) ||
+        seconds < 0 ||
+        seconds >= 60
+      ) {
+        return null;
+      }
+
+      return minutes * 60 + seconds;
     }
-    if (isNaN(secs) || secs <= 0) { alert("Invalid time format. Use MM:SS.ss or seconds."); return; }
-    setTimeInput((p) => ({ ...p, [teamKey]: "" }));
-    await run(() => relayRecordTime(match.id, fid, secs, []));
+
+    const seconds =
+      Number.parseFloat(value);
+
+    return Number.isFinite(seconds) &&
+      seconds > 0
+      ? seconds
+      : null;
   };
 
-  const TeamTimeBlock = ({ f, id, teamKey, time, accent }) => (
-    <div className="space-y-2 rounded-xl glass p-4">
-      <div className="flex items-center gap-2">
-        {f && <FranchiseEmblem franchise={f} size="sm" />}
-        <span className="text-sm font-bold text-white">{f?.name}</span>
+  const startEdit = (
+    teamKey,
+    time
+  ) => {
+    setTimeInput((previous) => ({
+      ...previous,
+      [teamKey]:
+        time == null
+          ? ""
+          : String(time),
+    }));
+
+    setEditing((previous) => ({
+      ...previous,
+      [teamKey]: true,
+    }));
+  };
+
+  const recordTime = async (
+    teamKey,
+    franchiseId
+  ) => {
+    const seconds =
+      parseTime(
+        timeInput[teamKey]
+      );
+
+    if (
+      seconds == null ||
+      seconds <= 0
+    ) {
+      alert(
+        "Invalid time. Use MM:SS.ss or seconds."
+      );
+      return;
+    }
+
+    await run(() =>
+      relayRecordTime(
+        match.id,
+        franchiseId,
+        seconds,
+        []
+      )
+    );
+
+    setTimeInput((previous) => ({
+      ...previous,
+      [teamKey]: "",
+    }));
+
+    setEditing((previous) => ({
+      ...previous,
+      [teamKey]: false,
+    }));
+  };
+
+  const TeamTimeBlock = ({
+    f,
+    id,
+    teamKey,
+    time,
+    accent,
+  }) => {
+    const isEditing =
+      editing[teamKey] ||
+      time == null;
+
+    return (
+      <div className="space-y-2 rounded-xl glass p-4">
+        <div className="flex items-center gap-2">
+          {f && (
+            <FranchiseEmblem
+              franchise={f}
+              size="sm"
+            />
+          )}
+
+          <span className="text-sm font-bold text-white">
+            {f?.name}
+          </span>
+        </div>
+
+        {time != null && (
+          <p className="font-display text-2xl font-extrabold text-olympus-gold">
+            {formatTime(time)}
+          </p>
+        )}
+
+        {isEditing ? (
+          <>
+            <input
+              value={
+                timeInput[teamKey]
+              }
+              onChange={(e) =>
+                setTimeInput(
+                  (previous) => ({
+                    ...previous,
+                    [teamKey]:
+                      e.target.value,
+                  })
+                )
+              }
+              placeholder="MM:SS.ss or seconds"
+              className="w-full rounded-lg border border-white/10 bg-[#0C1120] px-3 py-2 text-sm text-white placeholder:text-white/25 focus:border-olympus-gold/50 focus:outline-none"
+            />
+
+            <ActionButton
+              disabled={
+                busy ||
+                !timeInput[teamKey]
+              }
+              onClick={() =>
+                recordTime(
+                  teamKey,
+                  id
+                )
+              }
+              className={`w-full ${accent}`}
+            >
+              <Clock className="h-4 w-4" />
+              {time == null
+                ? "Record Finish"
+                : "Save Correction"}
+            </ActionButton>
+          </>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              startEdit(
+                teamKey,
+                time
+              )
+            }
+            className="w-full rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-40"
+          >
+            Edit time
+          </button>
+        )}
       </div>
-      {time != null ? (
-        <p className="font-display text-2xl font-extrabold text-olympus-gold">{formatTime(time)}</p>
-      ) : (
-        <>
-          <input
-            value={timeInput[teamKey]}
-            onChange={(e) => setTimeInput((p) => ({ ...p, [teamKey]: e.target.value }))}
-            placeholder="MM:SS.ss or seconds"
-            className="w-full rounded-lg border border-white/10 bg-[#0C1120] px-3 py-2 text-sm text-white placeholder:text-white/25 focus:border-olympus-gold/50 focus:outline-none"
-          />
-          <ActionButton disabled={busy || !timeInput[teamKey]} onClick={() => recordTime(teamKey, id)}
-            className={`w-full ${accent}`}>
-            <Clock className="h-4 w-4" /> Record Finish
-          </ActionButton>
-        </>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <>
       <div className="rounded-2xl glass-strong p-5 text-center">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-olympus-muted">{legs}×Relay Race</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-olympus-muted">
+          {legs}×Relay Race
+        </p>
+
         {complete && (
           <p className="mt-2 font-display text-lg font-bold text-olympus-gold">
-            {deadHeat ? "Dead Heat!" : `${franchiseNameById(leaderId, { [match.franchise_a_id]: fa, [match.franchise_b_id]: fb })} wins`}
+            {deadHeat
+              ? "Dead Heat"
+              : `${franchiseNameById(
+                  leaderId,
+                  {
+                    [match.franchise_a_id]:
+                      fa,
+                    [match.franchise_b_id]:
+                      fb,
+                  }
+                )} currently leads`}
           </p>
         )}
       </div>
 
       <div className="space-y-3">
-        <TeamTimeBlock f={fa} id={match.franchise_a_id} teamKey="a" time={timeA}
-          accent="border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" />
-        <TeamTimeBlock f={fb} id={match.franchise_b_id} teamKey="b" time={timeB}
-          accent="border-olympus-blue/40 bg-olympus-blue/10 text-olympus-blue hover:bg-olympus-blue/20" />
+        <TeamTimeBlock
+          f={fa}
+          id={match.franchise_a_id}
+          teamKey="a"
+          time={timeA}
+          accent="border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+        />
+
+        <TeamTimeBlock
+          f={fb}
+          id={match.franchise_b_id}
+          teamKey="b"
+          time={timeB}
+          accent="border-olympus-blue/40 bg-olympus-blue/10 text-olympus-blue hover:bg-olympus-blue/20"
+        />
       </div>
 
-      {complete && <InfoBanner color="gold"><Trophy className="h-4 w-4" /> Both times recorded — finish the match above.</InfoBanner>}
+      {complete && (
+        <InfoBanner color="gold">
+          <Trophy className="h-4 w-4" />
+          Both times recorded. Review them,
+          correct either time if necessary,
+          then finish the match.
+        </InfoBanner>
+      )}
     </>
   );
 }
