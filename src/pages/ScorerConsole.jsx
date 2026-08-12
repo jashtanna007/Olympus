@@ -653,6 +653,9 @@ export default function ScorerConsole() {
         <WicketModal
           batters={currentBatsmen}
           fielders={fielders}
+          wideNoBallPenalty={
+            match.wide_noball_penalty
+          }
           onClose={() => setShowWicket(false)}
           onConfirm={(w) => {
             setShowWicket(false);

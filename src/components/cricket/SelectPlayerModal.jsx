@@ -56,16 +56,46 @@ export function SelectPlayerModal({ title, subtitle, players = [], onSelect, onC
   );
 }
 
-const DISMISSALS = [
-  { key: "bowled", label: "Bowled" },
-  { key: "caught", label: "Caught" },
-  { key: "lbw", label: "LBW" },
-  { key: "run_out", label: "Run Out" },
-  { key: "stumped", label: "Stumped" },
-  { key: "hit_wicket", label: "Hit Wicket" },
+const DISMISSALS = {
+  runs: [
+    { key: "bowled", label: "Bowled" },
+    { key: "caught", label: "Caught" },
+    { key: "lbw", label: "LBW" },
+    { key: "run_out", label: "Run Out" },
+    { key: "stumped", label: "Stumped" },
+    { key: "hit_wicket", label: "Hit Wicket" },
+  ],
+  wide: [
+    { key: "run_out", label: "Run Out" },
+    { key: "stumped", label: "Stumped" },
+    { key: "hit_wicket", label: "Hit Wicket" },
+  ],
+  noball: [
+    { key: "run_out", label: "Run Out" },
+  ],
+  bye: [
+    { key: "run_out", label: "Run Out" },
+  ],
+  legbye: [
+    { key: "run_out", label: "Run Out" },
+  ],
+};
+
+const DELIVERY_TYPES = [
+  { key: "runs", label: "Legal ball" },
+  { key: "wide", label: "Wide" },
+  { key: "noball", label: "No ball" },
+  { key: "bye", label: "Bye" },
+  { key: "legbye", label: "Leg bye" },
 ];
 
-export function WicketModal({ batters = [], fielders = [], onConfirm, onClose }) {
+export function WicketModal({
+  batters = [],
+  fielders = [],
+  wideNoBallPenalty = 1,
+  onConfirm,
+  onClose,
+}) {
   return (
     <AnimatePresence>
       <motion.div
@@ -81,79 +111,363 @@ export function WicketModal({ batters = [], fielders = [], onConfirm, onClose })
           className="w-full max-w-md overflow-hidden rounded-2xl glass-strong"
         >
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-            <h3 className="font-display text-base font-bold text-rose-400">Wicket!</h3>
-            <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10">
+            <div>
+              <h3 className="font-display text-base font-bold text-rose-400">
+                Wicket
+              </h3>
+              <p className="text-[10px] text-olympus-muted">
+                Record the delivery and dismissal together
+              </p>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
-          <WicketForm batters={batters} fielders={fielders} onConfirm={onConfirm} />
+
+          <WicketForm
+            batters={batters}
+            fielders={fielders}
+            wideNoBallPenalty={wideNoBallPenalty}
+            onConfirm={onConfirm}
+          />
         </motion.div>
       </motion.div>
     </AnimatePresence>
   );
 }
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-function WicketForm({ batters, fielders, onConfirm }) {
+function WicketForm({
+  batters,
+  fielders,
+  wideNoBallPenalty,
+  onConfirm,
+}) {
+  const [ballType, setBallType] = useState("runs");
   const [dismissal, setDismissal] = useState("bowled");
-  const [outPlayer, setOutPlayer] = useState(batters[0]?.id || "");
+  const [outPlayer, setOutPlayer] = useState(
+    batters[0]?.id || "",
+  );
   const [fielder, setFielder] = useState("");
-  const needsFielder = ["caught", "stumped", "run_out"].includes(dismissal);
+  const [runs, setRuns] = useState("0");
+  const [vacantEnd, setVacantEnd] = useState("");
+
+  const dismissals =
+    DISMISSALS[ballType] || DISMISSALS.runs;
+
+  useEffect(() => {
+    if (
+      !dismissals.some(
+        (option) => option.key === dismissal,
+      )
+    ) {
+      setDismissal(dismissals[0]?.key || "run_out");
+    }
+
+    setFielder("");
+    setRuns("0");
+    setVacantEnd("");
+  }, [ballType]);
+
+  const selectedOutPlayer = useMemo(
+    () =>
+      batters.find(
+        (player) => player.id === outPlayer,
+      ) || null,
+    [batters, outPlayer],
+  );
+
+  const needsFielder =
+    dismissal === "caught" ||
+    dismissal === "stumped";
+
+  const runOut =
+    dismissal === "run_out";
+
+  const numericRuns =
+    Number.parseInt(runs || "0", 10);
+
+  const runsValid =
+    Number.isInteger(numericRuns) &&
+    numericRuns >= 0 &&
+    numericRuns <= 6;
+
+  const submit = () => {
+    if (!outPlayer || !runsValid) return;
+
+    if (needsFielder && !fielder) {
+      alert(
+        "Select the fielder / wicket-keeper for this dismissal.",
+      );
+      return;
+    }
+
+    if (runOut && !vacantEnd) {
+      alert(
+        "Select which batting end will be vacant for the next delivery.",
+      );
+      return;
+    }
+
+    let runsBatter = 0;
+    let runsExtra = 0;
+
+    if (ballType === "runs") {
+      runsBatter =
+        runOut ? numericRuns : 0;
+    } else if (ballType === "noball") {
+      runsBatter =
+        runOut ? numericRuns : 0;
+
+      runsExtra = wideNoBallPenalty;
+    } else if (ballType === "wide") {
+      runsExtra =
+        wideNoBallPenalty +
+        (runOut ? numericRuns : 0);
+    } else {
+      runsExtra =
+        runOut ? numericRuns : 0;
+    }
+
+    onConfirm({
+      dismissalType: dismissal,
+      outPlayerId: outPlayer,
+      fielderId: fielder || null,
+      ballType,
+      runsBatter,
+      runsExtra,
+      vacantEnd:
+        runOut ? vacantEnd : null,
+    });
+  };
 
   return (
-    <div className="space-y-3 p-4">
+    <div className="max-h-[70vh] space-y-4 overflow-y-auto p-4 scrollbar-thin">
       <div>
-        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-olympus-muted">Dismissal</label>
+        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
+          Delivery
+        </label>
+
         <div className="grid grid-cols-3 gap-1.5">
-          {DISMISSALS.map((d) => (
+          {DELIVERY_TYPES.map((type) => (
             <button
-              key={d.key}
-              onClick={() => setDismissal(d.key)}
+              key={type.key}
+              type="button"
+              onClick={() =>
+                setBallType(type.key)
+              }
               className={`rounded-lg border px-2 py-1.5 text-xs font-semibold transition ${
-                dismissal === d.key
-                  ? "border-rose-500/50 bg-rose-500/20 text-rose-300"
+                ballType === type.key
+                  ? "border-olympus-gold/50 bg-olympus-gold/15 text-olympus-gold"
                   : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.06]"
               }`}
             >
-              {d.label}
+              {type.label}
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-olympus-muted">Batsman out</label>
+        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
+          Dismissal
+        </label>
+
+        <div className="grid grid-cols-3 gap-1.5">
+          {dismissals.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() =>
+                setDismissal(option.key)
+              }
+              className={`rounded-lg border px-2 py-1.5 text-xs font-semibold transition ${
+                dismissal === option.key
+                  ? "border-rose-500/50 bg-rose-500/20 text-rose-300"
+                  : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.06]"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
+          Batter out
+        </label>
+
         <select
           value={outPlayer}
-          onChange={(e) => setOutPlayer(e.target.value)}
+          onChange={(event) =>
+            setOutPlayer(event.target.value)
+          }
           className="w-full rounded-lg border border-white/10 bg-[#0C1120] px-3 py-2 text-sm text-white"
         >
-          {batters.map((b) => (
-            <option key={b.id} value={b.id}>{b.full_name}</option>
+          {batters.map((batter) => (
+            <option
+              key={batter.id}
+              value={batter.id}
+            >
+              {batter.full_name}
+            </option>
           ))}
         </select>
+
+        {selectedOutPlayer && (
+          <p className="mt-1 text-[10px] text-olympus-muted">
+            Selected: {selectedOutPlayer.full_name}
+          </p>
+        )}
       </div>
+
+      {runOut && (
+        <>
+          <div>
+            <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
+              Completed runs before Run Out
+            </label>
+
+            <select
+              value={runs}
+              onChange={(event) =>
+                setRuns(event.target.value)
+              }
+              className="w-full rounded-lg border border-white/10 bg-[#0C1120] px-3 py-2 text-sm text-white"
+            >
+              {[0, 1, 2, 3, 4, 5, 6].map(
+                (value) => (
+                  <option
+                    key={value}
+                    value={value}
+                  >
+                    {value}
+                  </option>
+                ),
+              )}
+            </select>
+
+            <p className="mt-1 text-[10px] text-olympus-muted">
+              {ballType === "wide"
+                ? "The automatic Wide penalty is added separately."
+                : ballType === "noball"
+                  ? "The automatic No-ball penalty is added separately."
+                  : ballType === "bye" ||
+                      ballType === "legbye"
+                    ? "These runs are recorded as extras."
+                    : "These runs are credited to the striker."}
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
+              Vacant end for next delivery
+            </label>
+
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ["striker", "Striker end"],
+                ["non_striker", "Non-striker end"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() =>
+                    setVacantEnd(value)
+                  }
+                  className={`rounded-lg border px-3 py-2 text-xs font-bold transition ${
+                    vacantEnd === value
+                      ? "border-rose-500/50 bg-rose-500/15 text-rose-300"
+                      : "border-white/10 bg-white/[0.03] text-white/70"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <p className="mt-1 text-[10px] text-olympus-muted">
+              Select where the new batter should enter after all completed runs and any over-end strike change.
+            </p>
+          </div>
+        </>
+      )}
 
       {needsFielder && (
         <div>
-          <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-olympus-muted">Fielder</label>
+          <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
+            {dismissal === "stumped"
+              ? "Wicket-keeper"
+              : "Fielder"}
+          </label>
+
           <select
             value={fielder}
-            onChange={(e) => setFielder(e.target.value)}
+            onChange={(event) =>
+              setFielder(event.target.value)
+            }
             className="w-full rounded-lg border border-white/10 bg-[#0C1120] px-3 py-2 text-sm text-white"
           >
-            <option value="">—</option>
-            {fielders.map((f) => (
-              <option key={f.id} value={f.id}>{f.full_name}</option>
+            <option value="">
+              Select player
+            </option>
+
+            {fielders.map((player) => (
+              <option
+                key={player.id}
+                value={player.id}
+              >
+                {player.full_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {runOut && (
+        <div>
+          <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
+            Fielder (optional)
+          </label>
+
+          <select
+            value={fielder}
+            onChange={(event) =>
+              setFielder(event.target.value)
+            }
+            className="w-full rounded-lg border border-white/10 bg-[#0C1120] px-3 py-2 text-sm text-white"
+          >
+            <option value="">
+              Not recorded
+            </option>
+
+            {fielders.map((player) => (
+              <option
+                key={player.id}
+                value={player.id}
+              >
+                {player.full_name}
+              </option>
             ))}
           </select>
         </div>
       )}
 
       <button
-        onClick={() => onConfirm({ dismissalType: dismissal, outPlayerId: outPlayer, fielderId: fielder || null })}
-        disabled={!outPlayer}
+        type="button"
+        onClick={submit}
+        disabled={
+          !outPlayer ||
+          !runsValid ||
+          (needsFielder && !fielder) ||
+          (runOut && !vacantEnd)
+        }
         className="w-full rounded-xl bg-rose-500 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-40"
       >
         Confirm Wicket

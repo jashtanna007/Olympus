@@ -262,12 +262,15 @@ export const recordBall = (inningsId, opts = {}) =>
   });
 
 export const recordWicket = (inningsId, opts = {}) =>
-  rpc("cricket_record_wicket", {
+  rpc("cricket_record_wicket_v2", {
     p_innings_id: inningsId,
     p_dismissal_type: opts.dismissalType,
     p_out_player_id: opts.outPlayerId,
-    p_fielder_id: opts.fielderId ?? null,
+    p_ball_type: opts.ballType ?? "runs",
     p_runs_batter: opts.runsBatter ?? 0,
+    p_runs_extra: opts.runsExtra ?? 0,
+    p_fielder_id: opts.fielderId ?? null,
+    p_vacant_end: opts.vacantEnd ?? null,
     p_wagon_angle: opts.wagonAngle ?? null,
     p_wagon_distance: opts.wagonDistance ?? null,
   });
