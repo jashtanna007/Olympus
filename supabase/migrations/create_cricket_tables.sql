@@ -1,3 +1,42 @@
+-- ============================================================
+-- SAFETY GUARD
+--
+-- This is a destructive baseline migration. It may recreate
+-- match/scoring tables only on an empty development database.
+--
+-- If any Olympus match/scoring data already exists, abort before
+-- reaching the DROP TABLE statements below.
+-- ============================================================
+
+DO $$
+DECLARE
+  v_table TEXT;
+  v_has_rows BOOLEAN;
+BEGIN
+  FOREACH v_table IN ARRAY ARRAY[
+    'matches',
+    'match_players',
+    'cricket_innings',
+    'cricket_deliveries'
+  ]
+  LOOP
+    IF to_regclass('public.' || v_table) IS NOT NULL THEN
+      EXECUTE format(
+        'SELECT EXISTS (SELECT 1 FROM public.%I LIMIT 1)',
+        v_table
+      )
+      INTO v_has_rows;
+
+      IF v_has_rows THEN
+        RAISE EXCEPTION
+          'SAFETY STOP: destructive baseline migration refused because public.% contains data. Do not rerun this migration on an active Olympus database.',
+          v_table;
+      END IF;
+    END IF;
+  END LOOP;
+END;
+$$;
+
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║  OLYMPUS — Cricket detail tables (innings + deliveries)   ║
 -- ║  Run AFTER create_match_core.sql                          ║
