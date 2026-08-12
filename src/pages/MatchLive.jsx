@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Pencil, Trophy, Trash2 } from "lucide-react";
@@ -6,7 +6,6 @@ import { useAuth } from "../contexts/AuthContext";
 import { useCricketMatch } from "../hooks/useCricketMatch";
 import { useTeamSportMatch } from "../hooks/useTeamSportMatch";
 import { deleteMatch } from "../lib/cricket";
-import { supabase } from "../lib/supabase";
 import FranchiseEmblem from "../components/common/FranchiseEmblem";
 import LivePanel from "../components/cricket/LivePanel";
 import { BattingCard, BowlingCard, FallOfWickets } from "../components/cricket/Scorecard";
@@ -15,13 +14,12 @@ import RunRateGraph from "../components/cricket/RunRateGraph";
 import WagonWheel from "../components/cricket/WagonWheel";
 import TeamSportLive, {
   SportScorecardView,
-  SportSquadView,
   SportInfoView,
 } from "../components/sports/TeamSportLive";
 
 const TABS = ["Live", "Scorecard", "Commentary", "Overs", "Graphs", "Shots", "Squads", "Info"];
 
-const TEAM_SPORT_TABS = ["Live", "Scorecard", "Squad", "Info"];
+const TEAM_SPORT_TABS = ["Live", "Scorecard", "Info"];
 
 /* ─── Team-sport branch (owns its own data hook; rendered only for
        non-cricket matches so hook order stays stable in MatchLive) ─── */
@@ -30,18 +28,8 @@ function TeamSportEntry({ matchId }) {
   const navigate = useNavigate();
   const { user, isAdmin, canScoreMatch } = useAuth();
   const [tab, setTab] = useState("Live");
-  const [squad, setSquad] = useState([]);
 
-  // Fetch match_players for Squad tab
-  useEffect(() => {
-    if (!matchId) return;
-    supabase
-      .from("match_players")
-      .select("*")
-      .eq("match_id", matchId)
-      .order("full_name")
-      .then(({ data }) => setSquad(data || []));
-  }, [matchId]);
+
 
   const canScoreThisMatch =
     isAdmin ||
@@ -118,10 +106,6 @@ function TeamSportEntry({ matchId }) {
 
       {tab === "Scorecard" && derived && <ScorecardView />}
       {tab === "Scorecard" && !derived && <Empty>No scorecard yet.</Empty>}
-
-      {tab === "Squad" && (
-        <SportSquadView match={match} franchises={franchises} squad={squad} />
-      )}
 
       {tab === "Info" && <SportInfoView match={match} />}
     </div>

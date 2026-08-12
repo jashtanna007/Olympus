@@ -35,6 +35,7 @@ DECLARE
 
   v_striker_before UUID;
   v_non_striker_before UUID;
+  v_survivor UUID;
 
   v_allowed BOOLEAN := FALSE;
 BEGIN
@@ -325,23 +326,46 @@ BEGIN
 
   IF p_dismissal_type = 'run_out' THEN
 
+    -- A Run Out can occur during an incomplete attempted run,
+    -- so completed-run parity alone cannot tell us where the
+    -- surviving batter finally stands.
+    --
+    -- The scorer supplies the vacant end. Place the surviving
+    -- batter explicitly at the opposite end instead of trusting
+    -- record_ball's ordinary strike rotation.
+    v_survivor :=
+      CASE
+        WHEN p_out_player_id =
+          v_striker_before
+        THEN v_non_striker_before
+        ELSE v_striker_before
+      END;
+
+    IF v_survivor IS NULL THEN
+      RAISE EXCEPTION
+        'Could not determine the surviving batter';
+    END IF;
+
     UPDATE public.cricket_innings
     SET
       wickets = wickets + 1,
+
       striker_id =
         CASE
           WHEN p_vacant_end =
             'striker'
           THEN NULL
-          ELSE striker_id
+          ELSE v_survivor
         END,
+
       non_striker_id =
         CASE
           WHEN p_vacant_end =
             'non_striker'
           THEN NULL
-          ELSE non_striker_id
+          ELSE v_survivor
         END
+
     WHERE id = p_innings_id;
 
   ELSE
