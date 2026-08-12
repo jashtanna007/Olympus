@@ -3,7 +3,7 @@
 // Sports: Football, Volleyball, Basketball, Badminton, Table Tennis,
 //         Kabaddi, Chess, Carrom, Relay, Arm Wrestling.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -18,7 +18,9 @@ import EventModal from "../components/sports/EventModal";
 import {
   footballRecordEvent, footballUndo,
   volleyballRecordPoint, volleyballUndo,
-  basketballRecordPoint, basketballUndo,
+  basketballRecordPoint,
+  basketballRecordFoul,
+  basketballUndo,
   setTeamSportPeriod, completeTeamSportMatch,
   checkPenaltyWinner,
   rallyRecordPoint,
@@ -56,14 +58,18 @@ function TeamHeader({ fa, fb, scoreA, scoreB, center }) {
   );
 }
 
-function UndoButton({ onClick, busy }) {
+function UndoButton({
+  onClick,
+  busy,
+  label = "Undo last",
+}) {
   return (
     <button
       onClick={onClick}
       disabled={busy}
       className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 py-3 text-sm font-bold text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-40"
     >
-      <RotateCcw className="h-4 w-4" /> Undo last
+      <RotateCcw className="h-4 w-4" /> {label}
     </button>
   );
 }
@@ -103,10 +109,39 @@ export default function ScorerTeamSport() {
   const { loading, match, franchises, events, derived, refresh } = useTeamSportMatch(matchId);
   const [busy, setBusy] = useState(false);
 
-  // Football: null = normal play, "et1"/"et2" = extra time halves, "pen" = shootout
-  const [footballPhase, setFootballPhase] = useState("normal");
-  // Penalty shootout state
-  const [penaltyShots, setPenaltyShots] = useState([]);
+  // Football phase is also persisted through matches.current_period:
+  // 1 = normal, 2 = ET first half, 3 = ET second half, 4 = penalties.
+  const [footballPhase, setFootballPhase] =
+    useState("normal");
+
+  // Keep a local copy for immediate shootout rendering, then
+  // synchronize it with persisted football_events after refresh.
+  const [penaltyShots, setPenaltyShots] =
+    useState([]);
+
+  useEffect(() => {
+    if (match?.sport !== "Football") return;
+
+    const period = Number(match.current_period || 1);
+
+    if (derived?.hasPenalties || period >= 4) {
+      setFootballPhase("pen");
+    } else if (period === 3) {
+      setFootballPhase("et2");
+    } else if (period === 2) {
+      setFootballPhase("et1");
+    } else {
+      setFootballPhase("normal");
+    }
+
+    setPenaltyShots(derived?.penShots || []);
+  }, [
+    match?.sport,
+    match?.current_period,
+    derived?.hasPenalties,
+    derived?.penTotalA,
+    derived?.penTotalB,
+  ]);
 
   /* ── Shared async runner ── */
   const run = useCallback(
@@ -143,8 +178,6 @@ export default function ScorerTeamSport() {
         const winner = checkPenaltyWinner(newShots, match.franchise_a_id, match.franchise_b_id);
         if (winner) {
           await completeTeamSportMatch(match.id);
-          setFootballPhase("normal");
-          setPenaltyShots([]);
         }
         await refresh();
       } catch (e) {
@@ -239,8 +272,14 @@ export default function ScorerTeamSport() {
     if (footballPhase === "normal") {
       if (window.confirm(`Scores level ${scoreA}–${scoreB}. Go to Extra Time (2 × 15 min)?`)) {
         setFootballPhase("et1");
+        void run(() =>
+          setTeamSportPeriod(match.id, 2)
+        );
       } else if (window.confirm("Skip Extra Time and go directly to Penalty Shootout?")) {
         setFootballPhase("pen");
+        void run(() =>
+          setTeamSportPeriod(match.id, 4)
+        );
       }
       return;
     }
@@ -252,6 +291,9 @@ export default function ScorerTeamSport() {
       } else {
         if (window.confirm("Still level after ET 1st half. Continue to ET 2nd half?")) {
           setFootballPhase("et2");
+          void run(() =>
+            setTeamSportPeriod(match.id, 3)
+          );
         }
       }
       return;
@@ -264,7 +306,10 @@ export default function ScorerTeamSport() {
       } else {
         if (window.confirm("Still level after Extra Time. Proceed to Penalty Shootout?")) {
           setFootballPhase("pen");
-          setPenaltyShots([]);
+          setPenaltyShots(derived?.penShots || []);
+          void run(() =>
+            setTeamSportPeriod(match.id, 4)
+          );
         }
       }
       return;
@@ -273,11 +318,45 @@ export default function ScorerTeamSport() {
 
   /* ── Generic finish (non-football) ── */
   const handleGenericFinish = (sport, d) => {
-    // Basketball: block finish if tied at end of regulation
-    if (sport === "Basketball" && d?.needsOvertime) {
-      alert(`Scores are tied ${d.scoreA}–${d.scoreB} at end of regulation. Continue to Overtime before finishing.`);
+    if (sport === "Volleyball" && !d?.matchDecided) {
+      alert(
+        `A team must win ${d?.setsNeeded ?? 2} sets before the match can finish.`
+      );
       return;
     }
+
+    if (
+      (sport === "Badminton" ||
+        sport === "Table Tennis") &&
+      !d?.matchDecided
+    ) {
+      alert(
+        `A side must win ${d?.gamesNeeded ?? 2} games before the match can finish.`
+      );
+      return;
+    }
+
+    if (sport === "Basketball") {
+      if (
+        (d?.currentQuarter ?? 1) <
+        (d?.numQuarters ?? 4)
+      ) {
+        alert(
+          `Regulation is not complete. Continue through Q${d?.numQuarters ?? 4}.`
+        );
+        return;
+      }
+
+      if (d?.scoreA === d?.scoreB) {
+        alert(
+          d?.inOvertime
+            ? `Scores are tied ${d.scoreA}–${d.scoreB}. Continue to another overtime period.`
+            : `Scores are tied ${d.scoreA}–${d.scoreB} after regulation. Advance to overtime.`
+        );
+        return;
+      }
+    }
+
     const summary = (() => {
       if (!d) return "";
       if (sport === "Volleyball") return `${d.setsWonA}–${d.setsWonB} sets`;
@@ -634,7 +713,18 @@ function PenaltyShootout({ match, fa, fb, shots, busy, derived, onShot }) {
 /*  Volleyball panel                                           */
 /* ────────────────────────────────────────────────────────── */
 function VolleyballPanel({ match, fa, fb, derived, busy, run }) {
-  const { sets, current, setsWonA, setsWonB, pointsPerSet = 25, numSets = 3, finalSetPoints = 15, isDeuce } = derived || {};
+  const {
+    sets,
+    current,
+    setsWonA,
+    setsWonB,
+    setsNeeded = 2,
+    matchDecided = false,
+    pointsPerSet = 25,
+    numSets = 3,
+    finalSetPoints = 15,
+    isDeuce,
+  } = derived || {};
   const isFinalSet = current?.set >= numSets;
 
   return (
@@ -674,14 +764,22 @@ function VolleyballPanel({ match, fa, fb, derived, busy, run }) {
 
       <div className="grid grid-cols-2 gap-3">
         <ActionButton
-          disabled={busy || current?.finished}
+          disabled={
+            busy ||
+            current?.finished ||
+            matchDecided
+          }
           onClick={() => run(() => volleyballRecordPoint(match.id, match.franchise_a_id))}
           className="border-emerald-500/40 bg-emerald-500/10 py-6 text-lg text-emerald-400 hover:bg-emerald-500/20"
         >
           <Plus className="h-5 w-5" /> {fa?.short || "Team A"}
         </ActionButton>
         <ActionButton
-          disabled={busy || current?.finished}
+          disabled={
+            busy ||
+            current?.finished ||
+            matchDecided
+          }
           onClick={() => run(() => volleyballRecordPoint(match.id, match.franchise_b_id))}
           className="border-olympus-blue/40 bg-olympus-blue/10 py-6 text-lg text-olympus-blue hover:bg-olympus-blue/20"
         >
@@ -689,11 +787,17 @@ function VolleyballPanel({ match, fa, fb, derived, busy, run }) {
         </ActionButton>
       </div>
 
-      {current?.finished && (
+      {matchDecided ? (
+        <InfoBanner color="gold">
+          <Trophy className="h-4 w-4" />
+          Match decided — first to {setsNeeded} sets reached.
+          Finish the match below.
+        </InfoBanner>
+      ) : current?.finished ? (
         <p className="rounded-xl border border-olympus-gold/30 bg-olympus-gold/10 px-3 py-2 text-center text-xs font-bold text-olympus-gold">
           Set {current.set} complete — next point starts set {current.set + 1}.
         </p>
-      )}
+      ) : null}
 
       {sets && sets.length > 0 && (
         <div className="space-y-1.5 rounded-xl glass p-3">
@@ -715,10 +819,34 @@ function VolleyballPanel({ match, fa, fb, derived, busy, run }) {
 /* ────────────────────────────────────────────────────────── */
 /*  Basketball panel                                           */
 /* ────────────────────────────────────────────────────────── */
-function BasketballPanel({ match, fa, fb, derived, busy, run }) {
-  const { scoreA, scoreB, currentQuarter, numQuarters = 4, needsOvertime, inOvertime } = derived || {};
-  const [fouls, setFouls] = useState({ a: 0, b: 0 });
-  const [pendingAction, setPendingAction] = useState(null);
+function BasketballPanel({
+  match,
+  fa,
+  fb,
+  derived,
+  busy,
+  run,
+}) {
+  const {
+    scoreA,
+    scoreB,
+    currentQuarter = 1,
+    numQuarters = 4,
+    needsOvertime,
+    inOvertime,
+    foulsByQuarter = {},
+    foulsA = 0,
+    foulsB = 0,
+  } = derived || {};
+
+  const currentFouls =
+    foulsByQuarter[currentQuarter] || {
+      a: 0,
+      b: 0,
+    };
+
+  const [pendingAction, setPendingAction] =
+    useState(null);
 
   const openBasket = (teamKey, teamId, pts, teamName) =>
     setPendingAction({ type: "basket", pts, teamKey, teamId, teamName });
@@ -730,9 +858,22 @@ function BasketballPanel({ match, fa, fb, derived, busy, run }) {
     const { type, teamKey, teamId, pts } = pendingAction;
     setPendingAction(null);
     if (type === "basket") {
-      void run(() => basketballRecordPoint(match.id, { teamFranchiseId: teamId, points: pts, playerName: player || null }));
+      void run(() =>
+        basketballRecordPoint(match.id, {
+          teamFranchiseId: teamId,
+          points: pts,
+          playerName: player || null,
+        })
+      );
     } else {
-      setFouls((prev) => ({ ...prev, [teamKey]: prev[teamKey] + 1 }));
+      void run(() =>
+        basketballRecordFoul(
+          match.id,
+          teamId,
+          currentQuarter,
+          player || null
+        )
+      );
     }
   };
 
@@ -756,7 +897,8 @@ function BasketballPanel({ match, fa, fb, derived, busy, run }) {
           onClick={() => openFoul(teamKey, id, name)}
           className="w-full border-orange-500/30 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
         >
-          <Shield className="h-4 w-4" /> Foul ({fouls[teamKey]})
+          <Shield className="h-4 w-4" />
+          Foul ({currentFouls[teamKey] ?? 0})
         </ActionButton>
       </div>
     );
@@ -794,7 +936,7 @@ function BasketballPanel({ match, fa, fb, derived, busy, run }) {
             {inOvertime ? `OT ${(currentQuarter ?? 1) - numQuarters}` : `Q${currentQuarter ?? 1}`}
           </span>
           <button
-            disabled={busy || (currentQuarter ?? 1) >= 12}
+            disabled={busy || (currentQuarter ?? 1) >= 10}
             onClick={() => run(() => setTeamSportPeriod(match.id, (currentQuarter ?? 1) + 1))}
             className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-white/70 hover:bg-white/10 disabled:opacity-30"
           >
@@ -808,7 +950,26 @@ function BasketballPanel({ match, fa, fb, derived, busy, run }) {
         <TeamCol f={fb} id={match.franchise_b_id} teamKey="b" accent="border-olympus-blue/40 bg-olympus-blue/10 text-olympus-blue hover:bg-olympus-blue/20" />
       </div>
 
-      <UndoButton busy={busy} onClick={() => run(() => basketballUndo(match.id))} />
+      <div className="grid grid-cols-2 gap-2">
+        <UndoButton
+          busy={busy}
+          label="Undo basket"
+          onClick={() =>
+            run(() => basketballUndo(match.id))
+          }
+        />
+
+        <UndoButton
+          busy={
+            busy ||
+            foulsA + foulsB === 0
+          }
+          label="Undo foul"
+          onClick={() =>
+            run(() => sportEventUndo(match.id))
+          }
+        />
+      </div>
 
       {pendingAction && (
         <EventModal
@@ -827,8 +988,21 @@ function BasketballPanel({ match, fa, fb, derived, busy, run }) {
 /*  Rally sport panel (Badminton / Table Tennis)               */
 /* ────────────────────────────────────────────────────────── */
 function RallySportPanel({ match, fa, fb, derived, busy, run }) {
-  const { games = [], current = { a: 0, b: 0 }, gamesWonA = 0, gamesWonB = 0,
-    target = 21, cap, numGames = 3, isDeuce, atCap, isMatchPoint, sport } = derived || {};
+  const {
+    games = [],
+    current = { a: 0, b: 0 },
+    gamesWonA = 0,
+    gamesWonB = 0,
+    gamesNeeded = 2,
+    matchDecided = false,
+    target = 21,
+    cap,
+    numGames = 3,
+    isDeuce,
+    atCap,
+    isMatchPoint,
+    sport,
+  } = derived || {};
   const isBad = match.sport === "Badminton";
   const currentGame = current?.game ?? 1;
 
@@ -881,14 +1055,22 @@ function RallySportPanel({ match, fa, fb, derived, busy, run }) {
 
       <div className="grid grid-cols-2 gap-3">
         <ActionButton
-          disabled={busy || current?.finished}
+          disabled={
+            busy ||
+            current?.finished ||
+            matchDecided
+          }
           onClick={() => pointFor(match.franchise_a_id)}
           className="border-emerald-500/40 bg-emerald-500/10 py-7 text-xl text-emerald-400 hover:bg-emerald-500/20"
         >
           <Plus className="h-5 w-5" /> {fa?.short || "A"}
         </ActionButton>
         <ActionButton
-          disabled={busy || current?.finished}
+          disabled={
+            busy ||
+            current?.finished ||
+            matchDecided
+          }
           onClick={() => pointFor(match.franchise_b_id)}
           className="border-olympus-blue/40 bg-olympus-blue/10 py-7 text-xl text-olympus-blue hover:bg-olympus-blue/20"
         >
@@ -896,15 +1078,22 @@ function RallySportPanel({ match, fa, fb, derived, busy, run }) {
         </ActionButton>
       </div>
 
-      {current?.finished && (
+      {matchDecided ? (
+        <InfoBanner color="gold">
+          <Trophy className="h-4 w-4" />
+          Match decided — first to {gamesNeeded} games reached.
+          Finish the match below.
+        </InfoBanner>
+      ) : current?.finished ? (
         <button
           onClick={nextGamePrompt}
           disabled={busy}
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-olympus-gold/30 bg-olympus-gold/10 py-3 text-sm font-bold text-olympus-gold hover:bg-olympus-gold/20 disabled:opacity-40"
         >
-          <Flag className="h-4 w-4" /> Start Game {currentGame + 1}
+          <Flag className="h-4 w-4" />
+          Start Game {currentGame + 1}
         </button>
-      )}
+      ) : null}
 
       {games.length > 0 && (
         <div className="space-y-1.5 rounded-xl glass p-3">

@@ -127,32 +127,69 @@ export const basketballRecordFoul = (matchId, teamFranchiseId, quarter, playerNa
  * @returns {string|null}  winning franchise id, or null if not yet decided
  */
 export function checkPenaltyWinner(shots, aId, bId) {
-  const aShots = shots.filter((s) => s.teamId === aId);
-  const bShots = shots.filter((s) => s.teamId === bId);
-  const aG = aShots.filter((s) => s.scored).length;
-  const bG = bShots.filter((s) => s.scored).length;
-  const aT = aShots.length;
-  const bT = bShots.length;
+  const aShots = shots.filter((shot) => shot.teamId === aId);
+  const bShots = shots.filter((shot) => shot.teamId === bId);
 
-  if (aT === 0 && bT === 0) return null;
+  const aTaken = aShots.length;
+  const bTaken = bShots.length;
 
-  // ── Phase 1: first 5 kicks ──
-  if (aT <= 5 || bT <= 5) {
-    const aMax = 5 - aT; // kicks A still has
-    const bMax = 5 - bT; // kicks B still has
-    // A has already won (B can't catch up even if they score all remaining)
-    if (aG > bG + bMax) return aId;
-    // B has already won
-    if (bG > aG + aMax) return bId;
-    // Both done with 5 kicks
-    if (aT >= 5 && bT >= 5 && aG !== bG) return aG > bG ? aId : bId;
+  const aFirstFive = aShots.slice(0, 5);
+  const bFirstFive = bShots.slice(0, 5);
+
+  const aFirstGoals = aFirstFive.filter(
+    (shot) => shot.scored
+  ).length;
+
+  const bFirstGoals = bFirstFive.filter(
+    (shot) => shot.scored
+  ).length;
+
+  // First five kicks: allow mathematical elimination.
+  if (aTaken < 5 || bTaken < 5) {
+    const aRemaining = Math.max(0, 5 - aTaken);
+    const bRemaining = Math.max(0, 5 - bTaken);
+
+    if (aFirstGoals > bFirstGoals + bRemaining) {
+      return aId;
+    }
+
+    if (bFirstGoals > aFirstGoals + aRemaining) {
+      return bId;
+    }
+
     return null;
   }
 
-  // ── Phase 2: sudden death (both have taken > 5 kicks) ──
-  // After equal kicks, whichever team leads wins.
-  if (aT === bT && aG !== bG) return aG > bG ? aId : bId;
-  return null;
+  // After both sides have taken five, a first-five lead wins.
+  if (aFirstGoals !== bFirstGoals) {
+    return aFirstGoals > bFirstGoals ? aId : bId;
+  }
+
+  const aExtra = aShots.slice(5);
+  const bExtra = bShots.slice(5);
+
+  // Sudden death can only be decided after both teams have
+  // taken the same number of extra kicks.
+  if (
+    aExtra.length === 0 ||
+    aExtra.length !== bExtra.length
+  ) {
+    return null;
+  }
+
+  const aExtraGoals = aExtra.filter(
+    (shot) => shot.scored
+  ).length;
+
+  const bExtraGoals = bExtra.filter(
+    (shot) => shot.scored
+  ).length;
+
+  if (aExtraGoals === bExtraGoals) {
+    return null;
+  }
+
+  return aExtraGoals > bExtraGoals ? aId : bId;
 }
 
 export const setTeamSportPeriod = (matchId, period) =>
@@ -306,6 +343,7 @@ export function deriveVolleyball(match, points) {
   const cfg = match?.config || {};
   const pointsPerSet = cfg.points_per_set ?? match?.overs_per_innings ?? 25;
   const numSets = cfg.sets ?? match?.players_per_side ?? 3;
+  const setsNeeded = Math.floor(numSets / 2) + 1;
   const finalSetPoints = cfg.final_set_points ?? 15;
 
   const setNumbers = [...new Set(points.map((p) => p.set_number))].sort((x, y) => x - y);
@@ -322,12 +360,27 @@ export function deriveVolleyball(match, points) {
   const setsWonA = sets.filter((s) => s.finished && s.winner === aId).length;
   const setsWonB = sets.filter((s) => s.finished && s.winner === bId).length;
 
+  const matchDecided =
+    setsWonA >= setsNeeded ||
+    setsWonB >= setsNeeded;
+
   const isDeuce =
     !current.finished &&
     current.a >= current.target - 1 &&
     current.b >= current.target - 1;
 
-  return { sets, current, setsWonA, setsWonB, pointsPerSet, finalSetPoints, numSets, isDeuce };
+  return {
+    sets,
+    current,
+    setsWonA,
+    setsWonB,
+    setsNeeded,
+    matchDecided,
+    pointsPerSet,
+    finalSetPoints,
+    numSets,
+    isDeuce,
+  };
 }
 
 export function deriveBasketball(match, basketRows, genericRows = []) {
@@ -359,7 +412,12 @@ export function deriveBasketball(match, basketRows, genericRows = []) {
   const scoreA = sumFor(aId);
   const scoreB = sumFor(bId);
   const inOvertime = currentQuarter > numQuarters;
-  const regulationComplete = quarterNums.filter((q) => q <= numQuarters).length >= numQuarters;
+
+  // current_period is authoritative for which quarter/OT
+  // the scorer has reached. A scoreless quarter must still
+  // count as a completed period.
+  const regulationComplete =
+    currentQuarter >= numQuarters;
 
   return {
     scoreA,
@@ -411,14 +469,28 @@ export function deriveRallySport(match, events) {
   const gamesWonA = games.filter((g) => g.finished && g.winner === aId).length;
   const gamesWonB = games.filter((g) => g.finished && g.winner === bId).length;
   const gamesNeeded = Math.floor(numGames / 2) + 1;
+
+  const matchDecided =
+    gamesWonA >= gamesNeeded ||
+    gamesWonB >= gamesNeeded;
+
   const isDeuce = !current.finished && current.a >= target - 1 && current.b >= target - 1;
   const atCap = cap != null && !current.finished && (current.a >= cap - 1 || current.b >= cap - 1);
   const serveRow = gen(events).filter((e) => e.kind === "serve").slice(-1)[0];
 
   return {
     sport: match?.sport,
-    games, current, gamesWonA, gamesWonB, gamesNeeded,
-    target, cap, numGames, isDeuce, atCap,
+    games,
+    current,
+    gamesWonA,
+    gamesWonB,
+    gamesNeeded,
+    matchDecided,
+    target,
+    cap,
+    numGames,
+    isDeuce,
+    atCap,
     serving: serveRow?.team_franchise_id || null,
     isMatchPoint: !current.finished &&
       (gamesWonA === gamesNeeded - 1 || gamesWonB === gamesNeeded - 1) &&
