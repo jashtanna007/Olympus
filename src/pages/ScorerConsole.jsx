@@ -17,17 +17,29 @@ import {
 } from "../lib/cricket";
 
 /* ─── Squad setup step ─── */
-function SquadColumn({ side, franchise, squad, onEditRow, onAddRow, onRemoveRow }) {
+function SquadColumn({
+  side,
+  franchise,
+  squad,
+  maxPlayers,
+  onEditRow,
+  onAddRow,
+  onRemoveRow,
+}) {
   const handleKeyDown = (e, i) => {
     if (e.key === "Enter") {
       e.preventDefault();
       if (i < squad.length - 1) {
         const nextInput = document.getElementById(`squad-input-${side}-${i + 1}`);
         if (nextInput) nextInput.focus();
-      } else {
+      } else if (squad.length < maxPlayers) {
         onAddRow(side);
+
         setTimeout(() => {
-          const nextInput = document.getElementById(`squad-input-${side}-${i + 1}`);
+          const nextInput = document.getElementById(
+            `squad-input-${side}-${i + 1}`,
+          );
+
           if (nextInput) nextInput.focus();
         }, 50);
       }
@@ -63,7 +75,8 @@ function SquadColumn({ side, franchise, squad, onEditRow, onAddRow, onRemoveRow 
       </div>
       <button
         onClick={() => onAddRow(side)}
-        className="mt-2 flex items-center justify-center gap-1 rounded-lg border border-white/10 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/5"
+        disabled={squad.length >= maxPlayers}
+        className="mt-2 flex items-center justify-center gap-1 rounded-lg border border-white/10 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35"
       >
         <Plus className="h-3.5 w-3.5" /> Add player
       </button>
@@ -104,8 +117,21 @@ function SquadSetup({ match, franchises, onDone, busy, setBusy }) {
     setter((prev) => prev.map((r, idx) => (idx === i ? { ...r, full_name: name } : r)));
   };
   const addRow = (side) => {
-    const setter = side === "a" ? setSquadA : setSquadB;
-    setter((prev) => [...prev, { full_name: "", registration_id: null, role: null }]);
+    const setter =
+      side === "a" ? setSquadA : setSquadB;
+
+    setter((prev) =>
+      prev.length >= match.players_per_side
+        ? prev
+        : [
+            ...prev,
+            {
+              full_name: "",
+              registration_id: null,
+              role: null,
+            },
+          ],
+    );
   };
   const removeRow = (side, i) => {
     const setter = side === "a" ? setSquadA : setSquadB;
@@ -124,8 +150,13 @@ function SquadSetup({ match, franchises, onDone, busy, setBusy }) {
         }));
     const a = clean(squadA);
     const b = clean(squadB);
-    if (a.length < 2 || b.length < 2) {
-      alert("Each side needs at least 2 players.");
+    if (
+      a.length !== match.players_per_side ||
+      b.length !== match.players_per_side
+    ) {
+      alert(
+        `Each side must have exactly ${match.players_per_side} players before the toss.`,
+      );
       return;
     }
     setBusy(true);
@@ -145,13 +176,14 @@ function SquadSetup({ match, franchises, onDone, busy, setBusy }) {
     <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex items-center gap-2">
         <Users className="h-5 w-5 text-olympus-gold" />
-        <h2 className="font-display text-lg font-bold text-white">Playing XIs</h2>
+        <h2 className="font-display text-lg font-bold text-white">Playing squads</h2>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <SquadColumn
           side="a"
           franchise={fa}
           squad={squadA}
+          maxPlayers={match.players_per_side}
           onEditRow={editRow}
           onAddRow={addRow}
           onRemoveRow={removeRow}
@@ -160,6 +192,7 @@ function SquadSetup({ match, franchises, onDone, busy, setBusy }) {
           side="b"
           franchise={fb}
           squad={squadB}
+          maxPlayers={match.players_per_side}
           onEditRow={editRow}
           onAddRow={addRow}
           onRemoveRow={removeRow}
