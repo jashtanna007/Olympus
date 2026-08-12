@@ -314,7 +314,7 @@ function CenterLoader() {
 export default function ScorerConsole() {
   const { matchId } = useParams();
   const navigate = useNavigate();
-  const { canScoreMatch } = useAuth();
+  const { user, isAdmin, canScoreMatch } = useAuth();
   const { loading, match, franchises, players, innings, derived, refresh } = useCricketMatch(matchId);
 
   const [busy, setBusy] = useState(false);
@@ -369,6 +369,28 @@ export default function ScorerConsole() {
             Back to matches
           </button>
         </div>
+      </div>
+    );
+  }
+
+  const canScoreThisMatch =
+    isAdmin ||
+    (canScoreMatch &&
+      Boolean(user?.id) &&
+      match.assigned_scorer_id === user.id);
+
+  if (!canScoreThisMatch) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-[#07090F] text-center text-white">
+        <p className="text-sm text-olympus-muted">
+          You are not assigned to score this match.
+        </p>
+        <button
+          onClick={() => navigate("/matches")}
+          className="rounded-xl bg-olympus-gold px-4 py-2 text-sm font-bold text-olympus-bg"
+        >
+          Back to matches
+        </button>
       </div>
     );
   }

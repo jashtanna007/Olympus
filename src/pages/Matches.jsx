@@ -122,11 +122,11 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
   // Cricket fields
   const [overs, setOvers] = useState(10);
   const [players, setPlayers] = useState(11);
-  // Volleyball fields (legacy columns kept as fallback; config is authoritative)
+  // Volleyball fields
   const [volPoints, setVolPoints] = useState(25);
   const [numSets, setNumSets] = useState(3);
   const [volFinalSet, setVolFinalSet] = useState(15);
-  // Basketball fields (num quarters in players_per_side)
+  // Basketball fields
   const [numQuarters, setNumQuarters] = useState(4);
   const [quarterMinutes, setQuarterMinutes] = useState(8);
   // Football
@@ -205,10 +205,8 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
         sport,
         franchiseA: aId,
         franchiseB: bId,
-        oversPerInnings: sport === "Volleyball" ? Number(volPoints) : sport === "Cricket" ? Number(overs) : null,
-        playersPerSide: sport === "Volleyball" ? Number(numSets)
-          : sport === "Basketball" ? Number(numQuarters)
-          : sport === "Cricket" ? Number(players) : null,
+        oversPerInnings: sport === "Cricket" ? Number(overs) : undefined,
+        playersPerSide: sport === "Cricket" ? Number(players) : undefined,
         venue: venue || null,
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
         assignedScorerId: scorerId || null,

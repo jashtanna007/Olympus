@@ -944,8 +944,8 @@ export function SportSquadView({ match, franchises, squad = [] }) {
           <div className="space-y-1.5">
             {players.map((p) => (
               <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
-                <span className="font-semibold text-white">{p.player_name}</span>
-                {p.position && <span className="text-[10px] font-bold uppercase text-olympus-muted">{p.position}</span>}
+                <span className="font-semibold text-white">{p.full_name || p.player_name}</span>
+                {(p.role || p.position) && <span className="text-[10px] font-bold uppercase text-olympus-muted">{p.role || p.position}</span>}
               </div>
             ))}
           </div>

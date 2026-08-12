@@ -154,6 +154,29 @@ export async function createMatch({
   assignedScorerId = null,
   config = {},
 }) {
+  const normalizedOvers = Number(oversPerInnings ?? 10);
+  const normalizedPlayers = Number(playersPerSide ?? 11);
+
+  if (
+    !Number.isInteger(normalizedOvers) ||
+    normalizedOvers < 1 ||
+    normalizedOvers > 90
+  ) {
+    throw new Error(
+      "Overs per innings must be a whole number between 1 and 90."
+    );
+  }
+
+  if (
+    !Number.isInteger(normalizedPlayers) ||
+    normalizedPlayers < 2 ||
+    normalizedPlayers > 11
+  ) {
+    throw new Error(
+      "Players per side must be a whole number between 2 and 11."
+    );
+  }
+
   const { data: userData } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("matches")
@@ -161,8 +184,8 @@ export async function createMatch({
       sport,
       franchise_a_id: franchiseA,
       franchise_b_id: franchiseB,
-      overs_per_innings: oversPerInnings,
-      players_per_side: playersPerSide,
+      overs_per_innings: normalizedOvers,
+      players_per_side: normalizedPlayers,
       venue,
       scheduled_at: scheduledAt,
       assigned_scorer_id: assignedScorerId,
