@@ -11,6 +11,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BarChart3, Trophy, Medal, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { enrichFranchise } from "../lib/cricket";
+import {
+  computeStandings,
+  computeCombinedStandings,
+  getTiebreakerLabel,
+  supportsScoreDifference,
+} from "../lib/leaderboard";
 import FranchiseEmblem from "../components/common/FranchiseEmblem";
 
 const ALL_SPORTS = [
@@ -25,69 +31,6 @@ const SPORT_ICONS = {
   Chess: "♟️", Carrom: "🎯", Relay: "🏃", "Arm Wrestling": "💪",
 };
 
-/* ── Helper: compute W/D/L/Pts per franchise per sport ── */
-function computeStandings(matches, franchiseMap, sport) {
-  const stats = {}; // { franchiseId: { w, d, l, pts, gf, ga, played } }
-
-  const ensure = (fid) => {
-    if (!stats[fid]) stats[fid] = { w: 0, d: 0, l: 0, pts: 0, gf: 0, ga: 0, played: 0 };
-    return stats[fid];
-  };
-
-  const relevantMatches = matches.filter(
-    (m) => (sport === "All" || m.sport === sport) && m.status === "completed",
-  );
-
-  for (const m of relevantMatches) {
-    const aId = m.franchise_a_id;
-    const bId = m.franchise_b_id;
-    if (!aId || !bId) continue;
-    const a = ensure(aId);
-    const b = ensure(bId);
-    a.played++;
-    b.played++;
-
-    if (m.is_tie || !m.winner_franchise_id) {
-      // Draw
-      a.d++; a.pts += 1;
-      b.d++; b.pts += 1;
-    } else if (m.winner_franchise_id === aId) {
-      a.w++; a.pts += 2;
-      b.l++;
-    } else {
-      b.w++; b.pts += 2;
-      a.l++;
-    }
-
-    // Sport-specific GF/GA (goals for / against — or equivalent score difference)
-    const cfg = m.config || {};
-    const summary = m.result_summary || "";
-    // Try to extract score from result_summary (format "12–8" or "3–1 sets")
-    const scoreMatch = summary.match(/(\d+)\D+(\d+)/);
-    if (scoreMatch) {
-      const [, rawA, rawB] = scoreMatch.map(Number);
-      a.gf += rawA || 0; a.ga += rawB || 0;
-      b.gf += rawB || 0; b.ga += rawA || 0;
-    }
-  }
-
-  // Convert to sorted array
-  return Object.entries(stats)
-    .filter(([fid]) => fid in franchiseMap)
-    .map(([fid, s]) => ({
-      franchise: franchiseMap[fid],
-      ...s,
-      diff: s.gf - s.ga,
-    }))
-    .sort(
-      (a, b) =>
-        b.pts - a.pts ||
-        b.w - a.w ||
-        b.diff - a.diff ||
-        (a.franchise?.name || "").localeCompare(b.franchise?.name || ""),
-    );
-}
-
 /* ── Rank badge ── */
 function RankBadge({ rank }) {
   if (rank === 1)
@@ -101,7 +44,8 @@ function RankBadge({ rank }) {
 
 /* ── Single leaderboard table ── */
 function StandingsTable({ rows, sport }) {
-  const showDiff = !["Chess", "Relay", "Arm Wrestling"].includes(sport) && sport !== "All";
+  const showDiff =
+    supportsScoreDifference(sport);
 
   return (
     <div className="rounded-2xl glass overflow-hidden overflow-x-auto">
@@ -293,28 +237,22 @@ export default function Leaderboard() {
     [matches, franchiseMap, activeSports],
   );
 
-  // Combined all-sports points (sum across sports)
-  const combinedRows = useMemo(() => {
-    const totals = {};
-    for (const s of activeSports) {
-      for (const row of computeStandings(matches, franchiseMap, s)) {
-        const fid = row.franchise?.id;
-        if (!fid) continue;
-        if (!totals[fid]) totals[fid] = { franchise: row.franchise, pts: 0, w: 0, d: 0, l: 0, played: 0, diff: 0, gf: 0, ga: 0 };
-        totals[fid].pts += row.pts;
-        totals[fid].w += row.w;
-        totals[fid].d += row.d;
-        totals[fid].l += row.l;
-        totals[fid].played += row.played;
-        totals[fid].gf += row.gf;
-        totals[fid].ga += row.ga;
-        totals[fid].diff += row.diff;
-      }
-    }
-    return Object.values(totals).sort(
-      (a, b) => b.pts - a.pts || b.w - a.w || b.diff - a.diff || a.franchise.name.localeCompare(b.franchise.name),
-    );
-  }, [matches, franchiseMap, activeSports]);
+  // Combined all-sports points.
+  // Score differences are intentionally not combined because
+  // goals, basketball points, sets and games are different units.
+  const combinedRows = useMemo(
+    () =>
+      computeCombinedStandings(
+        activeSports,
+        matches,
+        franchiseMap
+      ),
+    [
+      activeSports,
+      matches,
+      franchiseMap,
+    ],
+  );
 
   const availableSports = ["All", ...activeSports];
 
@@ -418,16 +356,9 @@ export default function Leaderboard() {
 
                 {rows.length > 0 && (
                   <div className="rounded-xl glass p-3 text-center text-[11px] text-olympus-muted">
-                    {selectedSport === "Football" && "Tiebreaker: Goal Difference → Goals For"}
-                    {selectedSport === "Basketball" && "Tiebreaker: Point Difference"}
-                    {selectedSport === "Volleyball" && "Tiebreaker: Sets Won → Set Difference"}
-                    {(selectedSport === "Badminton" || selectedSport === "Table Tennis") && "Tiebreaker: Games Won Difference"}
-                    {selectedSport === "Kabaddi" && "Tiebreaker: Total Points Difference"}
-                    {selectedSport === "Cricket" && "Tiebreaker: NRR (Net Run Rate)"}
-                    {selectedSport === "Chess" && "Tiebreaker: Direct head-to-head result"}
-                    {selectedSport === "Carrom" && "Tiebreaker: Boards Won → Points Difference"}
-                    {selectedSport === "Relay" && "Fastest cumulative time (tie = shared points)"}
-                    {selectedSport === "Arm Wrestling" && "Tiebreaker: Pulls Won Difference"}
+                    {getTiebreakerLabel(
+                      selectedSport
+                    )}
                   </div>
                 )}
               </motion.div>
