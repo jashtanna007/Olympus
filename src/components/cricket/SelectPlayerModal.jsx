@@ -1,35 +1,58 @@
 // Modal for picking a player (openers, new batsman, new bowler) or a dismissal.
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
 export function SelectPlayerModal({ title, subtitle, players = [], onSelect, onClose, disabledIds = [] }) {
-  return (
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKey = (e) => {
+      if (e.key === "Escape" && onClose) onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[300] flex items-end justify-center bg-black/70 p-4 sm:items-center"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && onClose) onClose();
+        }}
+        className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/85 backdrop-blur-md p-4 sm:items-center overflow-y-auto"
       >
         <motion.div
-          initial={{ y: 30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 30, opacity: 0 }}
-          className="w-full max-w-md overflow-hidden rounded-2xl glass-strong"
+          initial={{ y: 30, opacity: 0, scale: 0.98 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: 30, opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          className="relative my-auto w-full max-w-md overflow-hidden rounded-2xl border border-white/15 bg-[#0C101C] shadow-[0_25px_70px_rgba(0,0,0,0.95)]"
         >
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.02] px-5 py-4">
             <div>
               <h3 className="font-display text-base font-bold text-white">{title}</h3>
               {subtitle && <p className="text-[11px] text-olympus-muted">{subtitle}</p>}
             </div>
             {onClose && (
-              <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10">
+              <button
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition"
+                aria-label="Close modal"
+              >
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
-          <div className="max-h-[50vh] space-y-1 overflow-y-auto p-3 scrollbar-thin">
+          <div className="max-h-[50vh] space-y-1.5 overflow-y-auto p-4 scrollbar-thin">
             {players.length === 0 && <p className="px-2 py-6 text-center text-sm text-olympus-muted">No players available.</p>}
             {players.map((p) => {
               const disabled = disabledIds.includes(p.id);
@@ -38,7 +61,7 @@ export function SelectPlayerModal({ title, subtitle, players = [], onSelect, onC
                   key={p.id}
                   disabled={disabled}
                   onClick={() => onSelect(p)}
-                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                  className={`flex w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-left text-sm transition ${
                     disabled
                       ? "cursor-not-allowed border-white/5 bg-white/[0.02] text-white/30"
                       : "border-white/10 bg-white/[0.03] text-white hover:border-olympus-gold/40 hover:bg-olympus-gold/[0.06]"
@@ -52,7 +75,8 @@ export function SelectPlayerModal({ title, subtitle, players = [], onSelect, onC
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 
@@ -66,34 +90,56 @@ const DISMISSALS = [
 ];
 
 export function WicketModal({ batters = [], fielders = [], onConfirm, onClose }) {
-  return (
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKey = (e) => {
+      if (e.key === "Escape" && onClose) onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[300] flex items-end justify-center bg-black/70 p-4 sm:items-center"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && onClose) onClose();
+        }}
+        className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/85 backdrop-blur-md p-4 sm:items-center overflow-y-auto"
       >
         <motion.div
-          initial={{ y: 30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 30, opacity: 0 }}
-          className="w-full max-w-md overflow-hidden rounded-2xl glass-strong"
+          initial={{ y: 30, opacity: 0, scale: 0.98 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: 30, opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          className="relative my-auto w-full max-w-md overflow-hidden rounded-2xl border border-white/15 bg-[#0C101C] shadow-[0_25px_70px_rgba(0,0,0,0.95)]"
         >
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.02] px-5 py-4">
             <h3 className="font-display text-base font-bold text-rose-400">Wicket!</h3>
-            <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10">
-              <X className="h-4 w-4" />
-            </button>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition"
+                aria-label="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <WicketForm batters={batters} fielders={fielders} onConfirm={onConfirm} />
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
-
-import { useState } from "react";
 
 function WicketForm({ batters, fielders, onConfirm }) {
   const [dismissal, setDismissal] = useState("bowled");

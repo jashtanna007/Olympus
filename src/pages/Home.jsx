@@ -20,7 +20,7 @@ export default function Home() {
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6">
       {/* ═══ 2-Column Split Hero (Left: Text & Stats, Right: 3D Franchise Cards) ═══ */}
-      <section className="relative min-h-[90vh] pt-24 pb-12 sm:pt-32">
+      <section className="relative min-h-[85vh] pt-6 pb-12 sm:pt-10">
         <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-8">
           
           {/* Left Column: Hero Copy & CTA */}

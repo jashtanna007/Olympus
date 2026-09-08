@@ -3,7 +3,7 @@
 // Sports: Football, Volleyball, Basketball, Badminton, Table Tennis,
 //         Kabaddi, Chess, Carrom, Relay, Arm Wrestling.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -18,7 +18,7 @@ import EventModal from "../components/sports/EventModal";
 import {
   footballRecordEvent, footballUndo,
   volleyballRecordPoint, volleyballUndo,
-  basketballRecordPoint, basketballUndo,
+  basketballRecordPoint, basketballRecordFoul, basketballUndo,
   setTeamSportPeriod, completeTeamSportMatch,
   checkPenaltyWinner,
   rallyRecordPoint,
@@ -56,14 +56,14 @@ function TeamHeader({ fa, fb, scoreA, scoreB, center }) {
   );
 }
 
-function UndoButton({ onClick, busy }) {
+function UndoButton({ onClick, busy, label = "Undo last" }) {
   return (
     <button
       onClick={onClick}
       disabled={busy}
       className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 py-3 text-sm font-bold text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-40"
     >
-      <RotateCcw className="h-4 w-4" /> Undo last
+      <RotateCcw className="h-4 w-4" /> {label}
     </button>
   );
 }
@@ -99,7 +99,7 @@ function InfoBanner({ children, color = "gold" }) {
 export default function ScorerTeamSport() {
   const { matchId } = useParams();
   const navigate = useNavigate();
-  const { canScoreMatch } = useAuth();
+  const { user, isAdmin, canScoreMatch } = useAuth();
   const { loading, match, franchises, events, derived, refresh } = useTeamSportMatch(matchId);
   const [busy, setBusy] = useState(false);
 
@@ -107,6 +107,12 @@ export default function ScorerTeamSport() {
   const [footballPhase, setFootballPhase] = useState("normal");
   // Penalty shootout state
   const [penaltyShots, setPenaltyShots] = useState([]);
+
+  useEffect(() => {
+    if (match?.status === "completed" || !derived?.hasPenalties) return;
+    setFootballPhase("pen");
+    setPenaltyShots(derived.penShots || []);
+  }, [match?.status, derived?.hasPenalties, derived?.penShots]);
 
   /* ── Shared async runner ── */
   const run = useCallback(
@@ -162,7 +168,8 @@ export default function ScorerTeamSport() {
   const done = useMemo(() => match?.status === "completed", [match]);
 
   /* ── Guard: no scorer access ── */
-  if (!canScoreMatch) {
+  const mayScore = isAdmin || (canScoreMatch && match?.assigned_scorer_id === user?.id);
+  if (!mayScore && !loading) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3 bg-[#07090F] text-center text-white">
         <p className="text-sm text-olympus-muted">You do not have scorer access.</p>
@@ -694,8 +701,9 @@ function VolleyballPanel({ match, fa, fb, derived, busy, run }) {
 /*  Basketball panel                                           */
 /* ────────────────────────────────────────────────────────── */
 function BasketballPanel({ match, fa, fb, derived, busy, run }) {
-  const { scoreA, scoreB, currentQuarter, numQuarters = 4, needsOvertime, inOvertime } = derived || {};
-  const [fouls, setFouls] = useState({ a: 0, b: 0 });
+  const { scoreA, scoreB, currentQuarter, numQuarters = 4, needsOvertime, inOvertime,
+    foulsByQuarter = {} } = derived || {};
+  const currentFouls = foulsByQuarter[currentQuarter] || { a: 0, b: 0 };
   const [pendingAction, setPendingAction] = useState(null);
 
   const openBasket = (teamKey, teamId, pts, teamName) =>
@@ -710,7 +718,7 @@ function BasketballPanel({ match, fa, fb, derived, busy, run }) {
     if (type === "basket") {
       void run(() => basketballRecordPoint(match.id, { teamFranchiseId: teamId, points: pts, playerName: player || null }));
     } else {
-      setFouls((prev) => ({ ...prev, [teamKey]: prev[teamKey] + 1 }));
+      void run(() => basketballRecordFoul(match.id, teamId, currentQuarter, player || null));
     }
   };
 
@@ -734,7 +742,7 @@ function BasketballPanel({ match, fa, fb, derived, busy, run }) {
           onClick={() => openFoul(teamKey, id, name)}
           className="w-full border-orange-500/30 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
         >
-          <Shield className="h-4 w-4" /> Foul ({fouls[teamKey]})
+          <Shield className="h-4 w-4" /> Foul ({currentFouls[teamKey]})
         </ActionButton>
       </div>
     );
@@ -787,6 +795,9 @@ function BasketballPanel({ match, fa, fb, derived, busy, run }) {
       </div>
 
       <UndoButton busy={busy} onClick={() => run(() => basketballUndo(match.id))} />
+      {(currentFouls.a > 0 || currentFouls.b > 0) && (
+        <UndoButton busy={busy} label="Undo last foul" onClick={() => run(() => sportEventUndo(match.id))} />
+      )}
 
       {pendingAction && (
         <EventModal
@@ -914,8 +925,17 @@ function KabaddiPanel({ match, fa, fb, derived, busy, run }) {
   const totalA = scoreA + etScoreA;
   const totalB = scoreB + etScoreB;
 
-  const recordKabaddi = (fid, kind) =>
-    run(() => kabaddiRecordEvent(match.id, fid, kind));
+  const recordKabaddi = (fid, kind) => run(() =>
+    kind === "golden_raid"
+      ? sportEventRecord(match.id, {
+          period: halves + 3,
+          kind,
+          teamFranchiseId: fid,
+          value: 1,
+          label: "Golden Raid point",
+        })
+      : kabaddiRecordEvent(match.id, fid, kind)
+  );
 
   const startExtraTime = () => {
     if (window.confirm("Regulation tied. Start Extra Time (2 × 3 min halves)?")) {
@@ -926,7 +946,7 @@ function KabaddiPanel({ match, fa, fb, derived, busy, run }) {
   const startGoldenRaid = async () => {
     if (!window.confirm("Still tied after Extra Time. Start Golden Raid (sudden death)?")) return;
     // Golden raid — handled as special event kind
-    await run(() => sportEventRecord(match.id, { period: 99, kind: "golden_raid", label: "Golden Raid begins" }));
+    await run(() => sportEventRecord(match.id, { period: halves + 3, kind: "golden_raid_start", label: "Golden Raid begins" }));
   };
 
   const TeamCol = ({ f, id, accent, scoreLabel, score }) => {
@@ -1043,7 +1063,7 @@ function ChessPanel({ match, fa, fb, derived, busy, run }) {
   };
 
   if (result) {
-    const label = result.value === "a" ? fa?.name : result.value === "b" ? fb?.name : "Draw";
+    const label = result.outcome === "a" ? fa?.name : result.outcome === "b" ? fb?.name : "Draw";
     return (
       <div className="rounded-2xl glass-strong p-8 text-center">
         <Crown className="mx-auto mb-3 h-10 w-10 text-olympus-gold" />
@@ -1077,13 +1097,12 @@ function ChessPanel({ match, fa, fb, derived, busy, run }) {
           className="w-full rounded-lg border border-white/10 bg-[#0C1120] px-3 py-2 text-sm text-white focus:border-olympus-gold/50 focus:outline-none"
         >
           <option value="">— select —</option>
-          <option value="Checkmate">Checkmate</option>
-          <option value="Resignation">Resignation</option>
-          <option value="Time forfeit">Time forfeit</option>
-          <option value="Stalemate">Stalemate (Draw)</option>
-          <option value="Mutual agreement">Mutual agreement (Draw)</option>
-          <option value="Insufficient material">Insufficient material (Draw)</option>
-          <option value="50-move rule">50-move rule (Draw)</option>
+          <option value="mate">Checkmate</option>
+          <option value="resign">Resignation</option>
+          <option value="timeout">Time forfeit</option>
+          <option value="agreement">Draw by agreement / board rule</option>
+          <option value="armageddon">Armageddon</option>
+          <option value="other">Other</option>
         </select>
       </div>
 
@@ -1186,14 +1205,14 @@ function CarromPanel({ match, fa, fb, derived, busy, run }) {
         ].map(({ f, id, accent }) => (
           <div key={id} className="space-y-2 rounded-xl glass p-3">
             <p className="truncate text-center text-xs font-bold text-white">{f?.short || f?.name}</p>
-            <ActionButton disabled={busy} onClick={() => recordPieces(id, f?.name)} className={`w-full ${accent}`}>
+            <ActionButton disabled={busy || Boolean(currentBoardData.winner)} onClick={() => recordPieces(id, f?.name)} className={`w-full ${accent}`}>
               <Plus className="h-4 w-4" /> Pieces
             </ActionButton>
-            <ActionButton disabled={busy} onClick={() => recordQueen(id)}
+            <ActionButton disabled={busy || Boolean(currentBoardData.winner)} onClick={() => recordQueen(id)}
               className="w-full border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20">
               <Crown className="h-4 w-4" /> Queen (+{queenPoints})
             </ActionButton>
-            <ActionButton disabled={busy} onClick={() => recordBoardWin(id)}
+            <ActionButton disabled={busy || Boolean(currentBoardData.winner)} onClick={() => recordBoardWin(id)}
               className="w-full border-olympus-gold/40 bg-olympus-gold/10 text-olympus-gold hover:bg-olympus-gold/20">
               <Trophy className="h-4 w-4" /> Win Board
             </ActionButton>

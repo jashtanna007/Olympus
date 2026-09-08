@@ -3,7 +3,7 @@
 // hit tables directly — everything flows through SECURITY DEFINER functions
 // guarded by is_match_scorer().
 
-import { supabase } from "./supabase";
+import { supabase } from "./supabase.js";
 
 function rpc(fn, args) {
   return supabase.rpc(fn, args).then(({ data, error }) => {
@@ -137,7 +137,7 @@ export function checkPenaltyWinner(shots, aId, bId) {
   if (aT === 0 && bT === 0) return null;
 
   // ── Phase 1: first 5 kicks ──
-  if (aT <= 5 || bT <= 5) {
+  if (aT < 5 || bT < 5) {
     const aMax = 5 - aT; // kicks A still has
     const bMax = 5 - bT; // kicks B still has
     // A has already won (B can't catch up even if they score all remaining)
@@ -149,7 +149,10 @@ export function checkPenaltyWinner(shots, aId, bId) {
     return null;
   }
 
-  // ── Phase 2: sudden death (both have taken > 5 kicks) ──
+  // Both completed five kicks: a lead decides the initial phase.
+  if (aT === 5 && bT === 5 && aG !== bG) return aG > bG ? aId : bId;
+
+  // ── Phase 2: sudden death ──
   // After equal kicks, whichever team leads wins.
   if (aT === bT && aG !== bG) return aG > bG ? aId : bId;
   return null;
@@ -359,7 +362,7 @@ export function deriveBasketball(match, basketRows, genericRows = []) {
   const scoreA = sumFor(aId);
   const scoreB = sumFor(bId);
   const inOvertime = currentQuarter > numQuarters;
-  const regulationComplete = quarterNums.filter((q) => q <= numQuarters).length >= numQuarters;
+  const regulationComplete = currentQuarter >= numQuarters;
 
   return {
     scoreA,
@@ -450,8 +453,10 @@ export function deriveKabaddi(match, events) {
       .filter((r) => {
         if (r.team_franchise_id !== fid) return false;
         if (tiebreakOnly) return r.kind === "tiebreak" || r.kind === "golden_raid";
-        if (extraTimeOnly) return r.period > halves;
-        return r.kind !== "tiebreak" && r.kind !== "golden_raid";
+        if (extraTimeOnly) {
+          return r.period > halves && r.kind !== "tiebreak" && r.kind !== "golden_raid";
+        }
+        return r.period <= halves && r.kind !== "tiebreak" && r.kind !== "golden_raid";
       })
       .reduce((s, r) => s + Number(r.value || 0), 0);
 
@@ -471,15 +476,12 @@ export function deriveKabaddi(match, events) {
   const goldenB = scoreFor(bId, { tiebreakOnly: true });
 
   const inExtraTime = currentHalf > halves;
-  const hasGoldenRaid = rows.some((r) => r.kind === "golden_raid");
+  const hasGoldenRaid = rows.some((r) => r.kind === "golden_raid" || r.kind === "golden_raid_start");
 
   // After regulation: tied → needs extra time
   // After extra time: still tied → needs golden raid
-  const regulationDone = currentHalf > halves;
-  const needsExtraTime = regulationDone && !inExtraTime && regScoreA === regScoreB;
-  const inET = inExtraTime && !hasGoldenRaid;
-  const etDone = inExtraTime && rows.some((r) => r.period > halves + 2); // simplistic ET done check
-  const needsGoldenRaid = inExtraTime && (regScoreA + etScoreA === regScoreB + etScoreB);
+  const needsExtraTime = currentHalf === halves && regScoreA === regScoreB;
+  const needsGoldenRaid = currentHalf >= halves + 2 && (regScoreA + etScoreA === regScoreB + etScoreB);
 
   return {
     scoreA: regScoreA,
@@ -505,7 +507,17 @@ export function deriveKabaddi(match, events) {
 }
 
 export function deriveChess(match, events) {
-  const result = gen(events).find((e) => e.kind === "result");
+  const row = gen(events).find((e) => e.kind === "result");
+  const result = row
+    ? {
+        ...row,
+        outcome: row.team_franchise_id === match?.franchise_a_id
+          ? "a"
+          : row.team_franchise_id === match?.franchise_b_id
+            ? "b"
+            : "draw",
+      }
+    : null;
   return {
     result: result || null,
     timeline: gen(events).slice().reverse(),

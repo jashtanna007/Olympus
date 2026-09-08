@@ -124,8 +124,8 @@ function SquadSetup({ match, franchises, onDone, busy, setBusy }) {
         }));
     const a = clean(squadA);
     const b = clean(squadB);
-    if (a.length < 2 || b.length < 2) {
-      alert("Each side needs at least 2 players.");
+    if (a.length < match.players_per_side || b.length < match.players_per_side) {
+      alert(`Each side needs exactly ${match.players_per_side} players before the match can start.`);
       return;
     }
     setBusy(true);
@@ -314,7 +314,7 @@ function CenterLoader() {
 export default function ScorerConsole() {
   const { matchId } = useParams();
   const navigate = useNavigate();
-  const { canScoreMatch } = useAuth();
+  const { user, isAdmin, canScoreMatch } = useAuth();
   const { loading, match, franchises, players, innings, derived, refresh } = useCricketMatch(matchId);
 
   const [busy, setBusy] = useState(false);
@@ -346,7 +346,8 @@ export default function ScorerConsole() {
     [refresh],
   );
 
-  if (!canScoreMatch) {
+  const mayScore = isAdmin || (canScoreMatch && match?.assigned_scorer_id === user?.id);
+  if (!mayScore && !loading) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3 bg-[#07090F] text-center text-white">
         <p className="text-sm text-olympus-muted">You do not have scorer access.</p>
@@ -579,6 +580,17 @@ export default function ScorerConsole() {
                 <button disabled={busy} onClick={() => setRunsPrompt({ type: "legbye", title: "Leg byes", max: 4 })} className="rounded-xl border border-white/10 bg-white/[0.04] py-3 text-sm font-bold text-white hover:bg-white/[0.08] disabled:opacity-40">Leg bye</button>
               </div>
 
+              {/* Overthrow — extra runs scored after fielder throws */}
+              <div>
+                <button
+                  disabled={busy}
+                  onClick={() => setRunsPrompt({ type: "overthrow", title: "Overthrow — extra runs", max: 6 })}
+                  className="w-full rounded-xl border border-amber-400/30 bg-amber-400/10 py-3 text-sm font-bold text-amber-300 hover:bg-amber-400/20 disabled:opacity-40"
+                >
+                  ⚡ Overthrow
+                </button>
+              </div>
+
               {/* Controls */}
               <div className="grid grid-cols-2 gap-2">
                 <button disabled={busy} onClick={() => run(() => swapStrike(rawInn.id))} className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] py-3 text-sm font-bold text-white hover:bg-white/[0.08] disabled:opacity-40">
@@ -616,6 +628,7 @@ export default function ScorerConsole() {
             const type = runsPrompt.type;
             setRunsPrompt(null);
             if (type === "noball") void run(() => recordBall(rawInn.id, { ballType: "noball", runsBatter: n, runsExtra: match.wide_noball_penalty }));
+            else if (type === "overthrow") void run(() => recordBall(rawInn.id, { ballType: "runs", runsBatter: 0, runsExtra: n }));
             else void run(() => recordBall(rawInn.id, { ballType: type, runsExtra: n }));
           }}
         />

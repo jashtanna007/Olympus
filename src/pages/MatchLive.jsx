@@ -28,7 +28,7 @@ const TEAM_SPORT_TABS = ["Live", "Scorecard", "Squad", "Info"];
 function TeamSportEntry({ matchId }) {
   const { loading, match, franchises, derived } = useTeamSportMatch(matchId);
   const navigate = useNavigate();
-  const { isAdmin, canScoreMatch } = useAuth();
+  const { user, isAdmin, canScoreMatch } = useAuth();
   const [tab, setTab] = useState("Live");
   const [squad, setSquad] = useState([]);
 
@@ -39,7 +39,7 @@ function TeamSportEntry({ matchId }) {
       .from("match_players")
       .select("*")
       .eq("match_id", matchId)
-      .order("player_name")
+      .order("batting_order")
       .then(({ data }) => setSquad(data || []));
   }, [matchId]);
 
@@ -63,6 +63,8 @@ function TeamSportEntry({ matchId }) {
   }
   if (!match) return null;
 
+  const mayScore = isAdmin || (canScoreMatch && match.assigned_scorer_id === user?.id);
+
   const ScorecardView = () => (
     <SportScorecardView match={match} franchises={franchises} derived={derived} />
   );
@@ -75,7 +77,7 @@ function TeamSportEntry({ matchId }) {
           <ArrowLeft className="h-4 w-4" /> Matches
         </button>
         <div className="flex items-center gap-2">
-          {canScoreMatch && match.status !== "completed" && (
+          {mayScore && match.status !== "completed" && (
             <Link to={`/scorer/${match.id}`} className="flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-400 hover:bg-rose-500/20">
               <Pencil className="h-3.5 w-3.5" /> Score
             </Link>
@@ -126,7 +128,7 @@ function TeamSportEntry({ matchId }) {
 export default function MatchLive() {
   const { matchId } = useParams();
   const navigate = useNavigate();
-  const { isAdmin, canScoreMatch } = useAuth();
+  const { user, isAdmin, canScoreMatch } = useAuth();
   const { loading, match, franchises, players, innings, deliveries, derived } = useCricketMatch(matchId);
   const [tab, setTab] = useState("Live");
   const [scorecardInnings, setScorecardInnings] = useState(0);
@@ -147,6 +149,7 @@ export default function MatchLive() {
   };
 
   const playerMap = derived?.playerMap || {};
+  const mayScore = isAdmin || (canScoreMatch && match?.assigned_scorer_id === user?.id);
 
   const statusBadge = useMemo(() => {
     if (!match) return null;
@@ -204,7 +207,7 @@ export default function MatchLive() {
           <ArrowLeft className="h-4 w-4" /> Matches
         </button>
         <div className="flex items-center gap-2">
-          {canScoreMatch && match.status !== "completed" && (
+          {mayScore && match.status !== "completed" && (
             <Link to={`/scorer/${match.id}`} className="flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-400 hover:bg-rose-500/20">
               <Pencil className="h-3.5 w-3.5" /> Score
             </Link>

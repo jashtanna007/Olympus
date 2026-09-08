@@ -598,7 +598,7 @@ BEGIN
 
   IF v_innings2.total_runs > v_innings1.total_runs THEN
     v_winner := v_innings2.batting_franchise_id;
-    v_result := 'won by ' || (10 - v_innings2.wickets) || ' wickets';
+    v_result := 'won by ' || (v_match.players_per_side - v_innings2.wickets) || ' wickets';
   ELSIF v_innings2.total_runs < v_innings1.total_runs THEN
     v_winner := v_innings1.batting_franchise_id;
     v_result := 'won by ' || (v_innings1.total_runs - v_innings2.total_runs) || ' runs';

@@ -9,16 +9,11 @@
 BEGIN;
 
 -- ============================================================
--- 0. CLEAN SLATE
--- These tables are introduced by this feature and hold no production data yet.
--- Dropping any earlier/partial version guarantees the schema below is applied
--- even if an incompatible `matches` table already exists.
--- Cricket detail tables are dropped first because they reference these.
+-- 0. NON-DESTRUCTIVE SETUP
+-- Never drop match tables in a migration: they contain fixtures, squads, and
+-- complete scoring histories. The definitions and defensive ALTERs below are
+-- safe for a fresh database and preserve existing data.
 -- ============================================================
-DROP TABLE IF EXISTS public.cricket_deliveries CASCADE;
-DROP TABLE IF EXISTS public.cricket_innings CASCADE;
-DROP TABLE IF EXISTS public.match_players CASCADE;
-DROP TABLE IF EXISTS public.matches CASCADE;
 
 -- ============================================================
 -- 1. MATCHES  (generic shell shared by every sport)
