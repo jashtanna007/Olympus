@@ -103,43 +103,62 @@ export async function fetchDeliveries(inningsIds) {
 }
 
 /* ═══════════════════════ Squad pre-fill (best effort) ═══════════════════════ */
-// A franchise's cricket squad = auction players it won whose registration lists
-// Cricket. Requires admin read access to registrations (auction_admin_policies).
-// Returns [] silently when auction data isn't populated — the setup UI then
-// falls back to manual entry.
-export async function fetchFranchiseCricketSquad(franchiseId) {
+// Fetch players from a franchise who are registered for the given sport.
+// Sources: (1) auction_players sold/retained to this franchise, filtered by sport;
+//          (2) fallback: all registrations whose franchise_id matches (if stored).
+// Returns [] silently on any error — UI falls back to empty state.
+export async function fetchFranchiseSquadForSport(franchiseId, sport) {
   try {
     const { data, error } = await supabase
       .from("auction_players")
-      .select("registration_id, registration:player_registrations(*)")
+      .select("registration_id, player_registrations(id, full_name, photo_url, sports, roll_number)")
       .eq("sold_to_franchise_id", franchiseId)
       .in("status", ["sold", "retained"]);
     if (error) throw error;
 
     return (data || [])
       .map((ap) => {
-        const regRaw = ap.registration || ap.player_registrations;
-        const reg = Array.isArray(regRaw) ? regRaw[0] : regRaw;
+        const reg = Array.isArray(ap.player_registrations) ? ap.player_registrations[0] : ap.player_registrations;
         return reg;
       })
       .filter((reg) => {
         if (!reg) return false;
         const sports = Array.isArray(reg.sports) ? reg.sports : [];
-        return sports.some((s) => (s?.name || s) === "Cricket");
+        return sports.some((s) => (s?.name || s) === sport);
       })
       .map((reg) => {
-        const cricket = (reg.sports || []).find(
-          (s) => (s?.name || s) === "Cricket",
-        );
+        const sportEntry = (reg.sports || []).find((s) => (s?.name || s) === sport);
         return {
           registration_id: reg.id,
           full_name: reg.full_name,
-          role: cricket?.position || null,
+          photo_url: reg.photo_url || null,
+          roll_number: reg.roll_number || null,
+          role: sportEntry?.position || null,
         };
       });
   } catch {
     return [];
   }
+}
+
+// ponytail: kept for backwards compat — callers in ScorerConsole use this name
+export const fetchFranchiseCricketSquad = (id) => fetchFranchiseSquadForSport(id, "Cricket");
+
+/* ═══════════════════════ Insert match players ═══════════════════════ */
+// Called immediately after createMatch when admin pre-selects a squad.
+// players = [{ registration_id, full_name, role }]
+export async function insertMatchPlayers(matchId, franchiseId, players) {
+  if (!players || players.length === 0) return;
+  const rows = players.map((p, i) => ({
+    match_id: matchId,
+    franchise_id: franchiseId,
+    registration_id: p.registration_id || null,
+    full_name: p.full_name,
+    batting_order: i,
+    role: p.role || null,
+  }));
+  const { error } = await supabase.from("match_players").insert(rows);
+  if (error) throw error;
 }
 
 /* ═══════════════════════ Admin: create match ═══════════════════════ */
@@ -154,6 +173,19 @@ export async function createMatch({
   assignedScorerId = null,
   config = {},
 }) {
+  const isCricket = sport === "Cricket";
+  const safeOvers = isCricket ? Number(oversPerInnings) : 1;
+  const safePlayers = Number(playersPerSide);
+  if (!franchiseA || !franchiseB || franchiseA === franchiseB) {
+    throw new Error("A match requires two different franchises.");
+  }
+  if (!Number.isInteger(safeOvers) || safeOvers < 1 || safeOvers > 90) {
+    throw new Error("Overs must be a whole number between 1 and 90.");
+  }
+  if (!Number.isInteger(safePlayers) || safePlayers < 2 || safePlayers > 11) {
+    throw new Error("Players per side must be a whole number between 2 and 11.");
+  }
+
   const { data: userData } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("matches")
@@ -161,8 +193,10 @@ export async function createMatch({
       sport,
       franchise_a_id: franchiseA,
       franchise_b_id: franchiseB,
-      overs_per_innings: oversPerInnings,
-      players_per_side: playersPerSide,
+      // These legacy cricket columns are constrained for every sport. The
+      // actual non-cricket format remains authoritative in config.
+      overs_per_innings: safeOvers,
+      players_per_side: safePlayers,
       venue,
       scheduled_at: scheduledAt,
       assigned_scorer_id: assignedScorerId,

@@ -355,11 +355,14 @@ export function VolleyballScorecard({ match, franchises, derived }) {
 /*  Basketball                                                 */
 /* ────────────────────────────────────────────────────────── */
 export function BasketballLive({ match, franchises, derived }) {
-  const { scoreA = 0, scoreB = 0, quarters = [], currentQuarter = 1, numQuarters = 4, inOvertime } = derived;
+  const { scoreA = 0, scoreB = 0, quarters = [], currentQuarter = 1, numQuarters = 4,
+    inOvertime, foulsA = 0, foulsB = 0 } = derived;
   return (
     <div className="space-y-4">
       <Scoreshell match={match} franchises={franchises}
         scoreLeft={scoreA} scoreRight={scoreB}
+        subLeft={`${foulsA} foul${foulsA === 1 ? "" : "s"}`}
+        subRight={`${foulsB} foul${foulsB === 1 ? "" : "s"}`}
         center={
           <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
             {inOvertime ? `OT ${currentQuarter - numQuarters}` : `Q${currentQuarter}`}
@@ -615,12 +618,12 @@ export function ChessLive({ match, franchises, derived }) {
   const { result } = derived || {};
   const fa = franchises[match.franchise_a_id];
   const fb = franchises[match.franchise_b_id];
-  const winner = result?.value === "a" ? fa?.name : result?.value === "b" ? fb?.name : result?.value === "draw" ? "Draw" : null;
+  const winner = result?.outcome === "a" ? fa?.name : result?.outcome === "b" ? fb?.name : result?.outcome === "draw" ? "Draw" : null;
   return (
     <div className="space-y-4">
       <Scoreshell match={match} franchises={franchises}
-        scoreLeft={result?.value === "a" ? 1 : result?.value === "draw" ? "½" : 0}
-        scoreRight={result?.value === "b" ? 1 : result?.value === "draw" ? "½" : 0}
+        scoreLeft={result?.outcome === "a" ? 1 : result?.outcome === "draw" ? "½" : 0}
+        scoreRight={result?.outcome === "b" ? 1 : result?.outcome === "draw" ? "½" : 0}
         center={<Crown className="h-6 w-6 text-olympus-gold" />}
       >
         {result ? (
@@ -645,7 +648,7 @@ export function ChessScorecard({ match, franchises, derived }) {
         <>
           <Crown className="mx-auto mb-3 h-8 w-8 text-olympus-gold" />
           <p className="font-display text-lg font-bold text-white">
-            {result.value === "draw" ? "Draw" : result.value === "a" ? fa?.name : fb?.name}
+            {result.outcome === "draw" ? "Draw" : result.outcome === "a" ? fa?.name : fb?.name}
           </p>
           {result.label && <p className="mt-1 text-sm text-olympus-muted">{result.label}</p>}
         </>
@@ -944,8 +947,8 @@ export function SportSquadView({ match, franchises, squad = [] }) {
           <div className="space-y-1.5">
             {players.map((p) => (
               <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
-                <span className="font-semibold text-white">{p.player_name}</span>
-                {p.position && <span className="text-[10px] font-bold uppercase text-olympus-muted">{p.position}</span>}
+                <span className="font-semibold text-white">{p.full_name}</span>
+                {p.role && <span className="text-[10px] font-bold uppercase text-olympus-muted">{p.role}</span>}
               </div>
             ))}
           </div>

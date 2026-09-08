@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -8,6 +9,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import {
   fetchMatches, fetchFranchises, createMatch, deleteMatch, listScorers,
+  fetchFranchiseSquadForSport, insertMatchPlayers,
 } from "../lib/cricket";
 import FranchiseEmblem from "../components/common/FranchiseEmblem";
 
@@ -199,21 +201,45 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
       alert("Pick two different franchises.");
       return;
     }
+    const config = buildConfig();
+    const invalidNumber = Object.values(config).some(
+      (value) => typeof value === "number" && (!Number.isFinite(value) || value <= 0),
+    );
+    if (invalidNumber) {
+      alert("All numeric match rules must be greater than zero.");
+      return;
+    }
+    const sideLimit = sport === "Cricket" ? Number(players)
+      : sport === "Volleyball" ? 6
+      : sport === "Football" ? 11
+      : sport === "Basketball" ? 5
+      : sport === "Kabaddi" ? 7
+      : sport === "Relay" ? Number(relayLegs)
+      : 2;
+    if (selectedA.size > sideLimit || selectedB.size > sideLimit) {
+      alert(`Select no more than ${sideLimit} players per side for ${sport}.`);
+      return;
+    }
     setBusy(true);
     try {
       const m = await createMatch({
         sport,
         franchiseA: aId,
         franchiseB: bId,
-        oversPerInnings: sport === "Volleyball" ? Number(volPoints) : sport === "Cricket" ? Number(overs) : null,
-        playersPerSide: sport === "Volleyball" ? Number(numSets)
-          : sport === "Basketball" ? Number(numQuarters)
-          : sport === "Cricket" ? Number(players) : null,
+        oversPerInnings: sport === "Cricket" ? Number(overs) : 1,
+        playersPerSide: sideLimit,
         venue: venue || null,
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
         assignedScorerId: scorerId || null,
-        config: buildConfig(),
+        config,
       });
+      // Save pre-selected squads if any players were chosen
+      const playersA = squadA.filter((p) => selectedA.has(p.registration_id));
+      const playersB = squadB.filter((p) => selectedB.has(p.registration_id));
+      await Promise.all([
+        insertMatchPlayers(m.id, aId, playersA),
+        insertMatchPlayers(m.id, bId, playersB),
+      ]);
       onCreated(m);
     } catch (e) {
       alert(e.message);
@@ -222,15 +248,78 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
     }
   };
 
-  return (
+  const [squadA, setSquadA] = useState([]);  // available players for team A
+  const [squadB, setSquadB] = useState([]);  // available players for team B
+  const [selectedA, setSelectedA] = useState(new Set()); // registration_ids chosen for A
+  const [selectedB, setSelectedB] = useState(new Set()); // registration_ids chosen for B
+  const [squadLoading, setSquadLoading] = useState(false);
+
+  // Re-fetch squads whenever sport or franchise changes
+  useEffect(() => {
+    if (!aId && !bId) return;
+    setSquadLoading(true);
+    setSelectedA(new Set());
+    setSelectedB(new Set());
+    Promise.all([
+      aId ? fetchFranchiseSquadForSport(aId, sport) : Promise.resolve([]),
+      bId ? fetchFranchiseSquadForSport(bId, sport) : Promise.resolve([]),
+    ]).then(([a, b]) => {
+      setSquadA(a);
+      setSquadB(b);
+    }).catch(() => {
+      setSquadA([]);
+      setSquadB([]);
+    }).finally(() => setSquadLoading(false));
+  }, [aId, bId, sport]);
+
+  const togglePlayer = (setFn, id) => setFn((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
+  return createPortal(
     <AnimatePresence>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4">
-        <motion.div initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }} className="w-full max-w-md overflow-hidden rounded-2xl glass-strong">
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto"
+      >
+        <motion.div
+          initial={{ y: 24, opacity: 0, scale: 0.98 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: 24, opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          className="relative my-auto w-full max-w-md overflow-hidden rounded-2xl border border-white/15 bg-[#0C101C] shadow-[0_25px_70px_rgba(0,0,0,0.95)]"
+        >
+          <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.02] px-5 py-4">
             <h3 className="font-display text-base font-bold text-white">Create match</h3>
-            <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10"><X className="h-4 w-4" /></button>
+            <button
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition"
+              aria-label="Close modal"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <div className="max-h-[70vh] space-y-3 overflow-y-auto p-4 scrollbar-thin">
+          <div className="max-h-[70vh] space-y-3.5 overflow-y-auto p-5 scrollbar-thin">
             <Field label="Sport">
               <div className="grid grid-cols-3 gap-1.5">
                 {SPORT_OPTIONS.map((s) => (
@@ -420,6 +509,35 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
                 {scorers.map((s) => <option key={s.id} value={s.id}>{s.email} ({s.role})</option>)}
               </select>
             </Field>
+
+            {/* ── Squad Picker ── show once both teams chosen */}
+            {aId && bId && (
+              <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-olympus-muted">
+                  Playing XI — select from registered players
+                </p>
+                {squadLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-olympus-gold" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <SquadPicker
+                      label={franchiseList.find((f) => f.id === aId)?.name || "Team A"}
+                      squad={squadA}
+                      selected={selectedA}
+                      onToggle={(id) => togglePlayer(setSelectedA, id)}
+                    />
+                    <SquadPicker
+                      label={franchiseList.find((f) => f.id === bId)?.name || "Team B"}
+                      squad={squadB}
+                      selected={selectedB}
+                      onToggle={(id) => togglePlayer(setSelectedB, id)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div className="border-t border-white/10 p-4">
             <button onClick={submit} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-olympus-gold py-3 text-sm font-bold text-olympus-bg hover:brightness-110 disabled:opacity-50">
@@ -428,7 +546,8 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 
@@ -442,8 +561,58 @@ function Field({ label, children }) {
   );
 }
 
+// SquadPicker — checkbox list of registered players for one franchise
+function SquadPicker({ label, squad, selected, onToggle }) {
+  return (
+    <div className="min-w-0">
+      <p className="mb-1.5 truncate text-[10px] font-bold text-white/70">{label}</p>
+      {squad.length === 0 ? (
+        <p className="text-[10px] italic text-white/30">No registered players found for this sport.</p>
+      ) : (
+        <div className="max-h-40 space-y-1 overflow-y-auto scrollbar-thin pr-1">
+          {squad.map((p) => {
+            const checked = selected.has(p.registration_id);
+            return (
+              <label
+                key={p.registration_id}
+                className={`flex cursor-pointer items-center gap-2 rounded-lg p-1.5 transition ${
+                  checked ? "bg-olympus-gold/10 text-white" : "hover:bg-white/5 text-white/60"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 shrink-0 accent-olympus-gold"
+                  checked={checked}
+                  onChange={() => onToggle(p.registration_id)}
+                />
+                {p.photo_url ? (
+                  <img src={p.photo_url} alt={p.full_name} className="h-5 w-5 shrink-0 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[8px] font-bold text-white/60">
+                    {p.full_name?.[0] ?? "?"}
+                  </span>
+                )}
+                <span className="min-w-0">
+                  <span className="block truncate text-[11px] font-semibold leading-tight">{p.full_name}</span>
+                  {p.role && <span className="block truncate text-[9px] text-olympus-muted">{p.role}</span>}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Matches() {
   const { isAdmin, canCreateMatch } = useAuth();
+  const filterBarRef = useRef(null);
+  const onFilterWheel = useCallback((e) => {
+    if (!filterBarRef.current) return;
+    e.preventDefault();
+    filterBarRef.current.scrollLeft += e.deltaY + e.deltaX;
+  }, []);
   const [matches, setMatches] = useState([]);
   const [franchises, setFranchises] = useState({});
   const [loading, setLoading] = useState(true);
@@ -525,7 +694,11 @@ export default function Matches() {
 
       {/* Sport Category Filter Bar */}
       {!loading && matches.length > 0 && (
-        <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <div
+          ref={filterBarRef}
+          onWheel={onFilterWheel}
+          className="mb-6 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none"
+        >
           {sportCategories.map((sport) => {
             const isSelected = selectedSport === sport;
             const count = sport === "All"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -34,12 +34,61 @@ export default function Navbar() {
   const { isAdmin } = useAuth();
 
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [scrolled, setScrolled] = useState(false);
+  const lastScrollY = useRef(0);
+
   const [
     registeredPlayersDownloading,
     setRegisteredPlayersDownloading,
   ] = useState(false);
 
   const isHomeDashboard = location.pathname === "/";
+
+  // Hide on scroll down, show on scroll up, and track scroll position
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      // Track scrolled state for backdrop styling
+      setScrolled(currentScrollY > 15);
+
+      // Always show near the top of the page
+      if (currentScrollY < 40) {
+        setVisible(true);
+        lastScrollY.current = currentScrollY;
+        return;
+      }
+
+      const diff = currentScrollY - lastScrollY.current;
+      // Scroll threshold of 8px to prevent micro-jitter
+      if (Math.abs(diff) > 8) {
+        if (diff > 0) {
+          // Scrolling DOWN -> hide navbar smoothly
+          setVisible(false);
+        } else {
+          // Scrolling UP -> reveal navbar
+          setVisible(true);
+        }
+        lastScrollY.current = currentScrollY;
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileOpen) {
+      setVisible(true);
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [mobileOpen]);
 
   const handleDownloadRegisteredPlayers = async () => {
     if (
@@ -91,12 +140,25 @@ export default function Navbar() {
     <>
       <motion.header
         initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="fixed inset-x-0 top-0 z-50"
+        animate={{
+          y: visible ? 0 : -100,
+          opacity: visible ? 1 : 0,
+        }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? "bg-[#07090F]/90 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.65)] py-2 sm:py-2.5"
+            : "bg-transparent border-b border-transparent pt-3 sm:pt-4 pb-1"
+        }`}
       >
-        <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-6">
-          <nav className="flex h-14 items-center justify-between rounded-2xl glass-strong px-4 sm:h-16 sm:px-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <nav
+            className={`flex h-14 items-center justify-between rounded-2xl px-4 sm:h-16 sm:px-6 transition-all duration-300 ${
+              scrolled
+                ? "bg-[#0C101C]/90 border border-white/10 shadow-lg"
+                : "glass-strong"
+            }`}
+          >
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2.5">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-olympus-gold to-olympus-gold/40">

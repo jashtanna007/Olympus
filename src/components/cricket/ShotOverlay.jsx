@@ -2,7 +2,8 @@
 // direction on the ground) for the ball just scored. Non-blocking:
 // "Skip" commits the ball without shot data.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, MousePointerClick } from "lucide-react";
 import WagonWheel from "./WagonWheel";
@@ -10,19 +11,33 @@ import WagonWheel from "./WagonWheel";
 export default function ShotOverlay({ label, onCommit, onSkip }) {
   const [wagon, setWagon] = useState(null); // {angle, distance}
 
-  return (
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKey = (e) => {
+      if (e.key === "Escape" && onSkip) onSkip();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [onSkip]);
+
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[300] flex items-center justify-center bg-black/75 p-4"
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto"
       >
         <motion.div
-          initial={{ y: 24, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 24, opacity: 0 }}
-          className="w-full max-w-sm overflow-hidden rounded-2xl glass-strong p-4"
+          initial={{ y: 24, opacity: 0, scale: 0.98 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: 24, opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          className="relative my-auto w-full max-w-sm overflow-hidden rounded-2xl border border-white/15 bg-[#0C101C] shadow-[0_25px_70px_rgba(0,0,0,0.95)] p-5"
         >
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-display text-base font-bold text-white">Shot detail</h3>
@@ -76,6 +91,7 @@ export default function ShotOverlay({ label, onCommit, onSkip }) {
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
