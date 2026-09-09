@@ -16,28 +16,31 @@ export default function GlobalLayout() {
   return (
     <div className="relative min-h-screen bg-olympus-bg">
       {/* Stadium background — fixed behind everything */}
-      <div className="fixed inset-0 z-0">
-        {/* Desktop image */}
+      <div className="fixed inset-0 z-0" style={{ willChange: "transform", transform: "translateZ(0)" }}>
+        {/* Desktop image — WebP for 96% smaller file */}
         <picture>
           <source
-            srcSet="/backgrounds/stadium-desktop.png"
+            srcSet="/backgrounds/stadium-desktop.webp"
             media="(min-width: 768px)"
+            type="image/webp"
+          />
+          <source
+            srcSet="/backgrounds/stadium-mobile.webp"
+            type="image/webp"
           />
           <img
-            src="/backgrounds/stadium-mobile.png"
+            src="/backgrounds/stadium-mobile.webp"
             alt=""
             className="h-full w-full object-cover object-top"
             loading="eager"
+            fetchPriority="high"
+            decoding="async"
           />
         </picture>
 
         {/* Gradient overlays */}
         <div className="absolute inset-0 bg-gradient-to-b from-olympus-bg/5 via-olympus-bg/40 to-olympus-bg" />
         <div className="absolute inset-0 bg-radial-[ellipse_at_center] from-transparent to-black/30" />
-
-        {/* Ambient glow accents */}
-        <div className="pointer-events-none absolute -top-40 left-1/4 h-[500px] w-[500px] rounded-full bg-olympus-gold/[0.04] blur-[150px]" />
-        <div className="pointer-events-none absolute -bottom-20 right-1/4 h-[400px] w-[400px] rounded-full bg-olympus-blue/[0.03] blur-[120px]" />
       </div>
 
       {/* Noise overlay */}

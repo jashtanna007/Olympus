@@ -132,6 +132,16 @@ a:focus-visible {
   -webkit-backdrop-filter: blur(28px) saturate(150%);
   border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow: var(--shadow-glass);
+  /* GPU promotion — avoids repaint on scroll */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+@media (max-width: 767px) {
+  .glass {
+    backdrop-filter: blur(12px) saturate(130%);
+    -webkit-backdrop-filter: blur(12px) saturate(130%);
+  }
 }
 
 .glass-strong {
@@ -144,6 +154,15 @@ a:focus-visible {
   -webkit-backdrop-filter: blur(32px) saturate(150%);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: var(--shadow-glass-strong);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+@media (max-width: 767px) {
+  .glass-strong {
+    backdrop-filter: blur(16px) saturate(130%);
+    -webkit-backdrop-filter: blur(16px) saturate(130%);
+  }
 }
 
 .glass-dark {
@@ -153,6 +172,15 @@ a:focus-visible {
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
     0 20px 50px -20px rgba(0, 0, 0, 0.6);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+@media (max-width: 767px) {
+  .glass-dark {
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+  }
 }
 
 /* ═══════════ Glow ═══════════ */

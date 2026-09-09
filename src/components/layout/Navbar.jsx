@@ -136,7 +136,7 @@ export default function Navbar() {
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2.5">
               <img
-                src="/olympus-logo.png"
+                src="/olympus-logo.webp"
                 alt="Olympus"
                 className="h-10 w-10 object-contain"
               />

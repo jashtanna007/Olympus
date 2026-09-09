@@ -122,7 +122,7 @@ export default function Login() {
       >
         <div className="text-center">
           <img
-            src="/olympus-logo.png"
+            src="/olympus-logo.webp"
             alt="Olympus"
             className="mx-auto mb-2 h-24 w-24 object-contain"
           />
