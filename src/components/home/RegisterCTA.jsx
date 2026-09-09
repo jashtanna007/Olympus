@@ -39,9 +39,6 @@ export default function RegisterCTA() {
             Register Now
             <ArrowUpRight className="h-4 w-4" />
           </MagneticButton>
-          <MagneticButton variant="outline" size="lg">
-            Learn More
-          </MagneticButton>
         </div>
       </div>
     </motion.section>

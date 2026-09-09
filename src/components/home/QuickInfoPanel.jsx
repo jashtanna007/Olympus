@@ -11,8 +11,7 @@ const fadeUp = {
 
 export default function QuickInfoPanel() {
   const featuredFranchises = [...franchises]
-    .sort((a, b) => a.displayOrder - b.displayOrder)
-    .slice(0, 4);
+    .sort((a, b) => a.displayOrder - b.displayOrder);
 
   return (
     <motion.div
