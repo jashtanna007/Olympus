@@ -192,18 +192,11 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
                     <span className="mt-1 block text-[9px] font-bold uppercase tracking-wider text-olympus-subtle">
                       {franchise.leader.role}
                     </span>
-                    <span className="mt-2 block text-xs text-white/70">
-                      Roll {franchise.leader.rollNumber}
-                    </span>
+
                   </div>
                 </div>
 
-                <div className="mt-5 flex items-start gap-2 rounded-xl glass-dark p-3">
-                  <Mail size={15} className="mt-0.5 shrink-0 text-olympus-subtle" />
-                  <span className="break-all text-[10px] text-white/70">
-                    {franchise.leader.email}
-                  </span>
-                </div>
+
               </section>
 
               <section
@@ -253,8 +246,7 @@ export default function FranchiseModal({ franchise, isOpen, onClose }) {
                             {index + 1}. {player.name}
                           </strong>
                           <p className="mt-1 text-[10px] text-white/45">
-                            Roll {player.rollNumber}
-                            {player.status === "retained" ? " · Retained" : ""}
+                            {player.status === "retained" ? "Retained" : "Auctioned"}
                           </p>
                         </div>
                       </div>

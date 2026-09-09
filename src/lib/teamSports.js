@@ -649,3 +649,15 @@ export function genericEventLabel(e) {
   };
   return map[e.kind] || e.kind;
 }
+
+
+export const restrictedGirlsSports = [
+  "Basketball",
+  "Kabaddi",
+  "Arm Wrestling"
+];
+
+export const girlsIndividualSports = [
+  "Cricket",
+  "Football"
+];

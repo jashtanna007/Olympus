@@ -1,12 +1,16 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   LogOut,
   Mail,
   ShieldCheck,
   User,
+  Gavel,
+  Swords,
+  Settings,
+  Loader2,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 
@@ -17,10 +21,13 @@ export default function Profile() {
     user,
     role,
     rollNumber,
+    isAdmin,
     signOut,
   } = useAuth();
 
   const [registrationPhotoUrl, setRegistrationPhotoUrl] = useState("");
+  const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +60,41 @@ export default function Profile() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  // Load registration status for admin
+  useEffect(() => {
+    if (!isAdmin) return;
+    async function load() {
+      try {
+        const { data } = await supabase
+          .from("site_settings")
+          .select("value")
+          .eq("key", "registration_open")
+          .maybeSingle();
+        if (data) setRegistrationOpen(data.value === true);
+      } catch { /* table may not exist yet */ }
+    }
+    load();
+  }, [isAdmin]);
+
+  const toggleRegistration = useCallback(async () => {
+    if (toggling) return;
+    setToggling(true);
+    try {
+      const { error } = await supabase.rpc("toggle_registration", {
+        p_open: !registrationOpen,
+      });
+      if (error) {
+        alert(error.message);
+        return;
+      }
+      setRegistrationOpen(!registrationOpen);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setToggling(false);
+    }
+  }, [toggling, registrationOpen]);
 
   const fullName =
     user?.user_metadata?.full_name ||
@@ -137,6 +179,73 @@ export default function Profile() {
           </strong>
         </article>
       </section>
+
+      {/* ─── Admin Panel ─── */}
+      {isAdmin && (
+        <section className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Settings className="h-4 w-4 text-amber-400" />
+            <h2 className="text-xs font-black uppercase tracking-[0.15em] text-white/60">
+              Admin Controls
+            </h2>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* Registration toggle */}
+            <div className="rounded-2xl glass-strong p-5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-olympus-subtle">
+                Registration Status
+              </p>
+              <div className="mt-3 flex items-center justify-between">
+                <span className={`text-sm font-bold ${registrationOpen ? "text-emerald-400" : "text-rose-400"}`}>
+                  {registrationOpen ? "OPEN" : "CLOSED"}
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleRegistration}
+                  disabled={toggling}
+                  className={`rounded-lg px-4 py-2 text-[11px] font-bold transition ${
+                    registrationOpen
+                      ? "bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20"
+                      : "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                  } disabled:opacity-40`}
+                >
+                  {toggling ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : registrationOpen ? "Close Registrations" : "Open Registrations"}
+                </button>
+              </div>
+            </div>
+
+            {/* Quick links */}
+            <div className="rounded-2xl glass-strong p-5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-olympus-subtle">
+                Management
+              </p>
+              <div className="mt-3 flex flex-col gap-2">
+                <Link
+                  to="/auction"
+                  className="flex items-center gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-4 py-2.5 text-xs font-bold text-amber-300 transition hover:bg-amber-400/10"
+                >
+                  <Gavel className="h-3.5 w-3.5" /> Franchise Auction
+                </Link>
+                <Link
+                  to="/girls-auction"
+                  className="flex items-center gap-2 rounded-lg border border-pink-400/20 bg-pink-400/5 px-4 py-2.5 text-xs font-bold text-pink-300 transition hover:bg-pink-400/10"
+                >
+                  <Gavel className="h-3.5 w-3.5" /> Girls Individual Auction
+                </Link>
+                <Link
+                  to="/matches"
+                  className="flex items-center gap-2 rounded-lg border border-cyan-400/20 bg-cyan-400/5 px-4 py-2.5 text-xs font-bold text-cyan-300 transition hover:bg-cyan-400/10"
+                >
+                  <Swords className="h-3.5 w-3.5" /> Match Management
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       <button
         type="button"

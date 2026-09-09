@@ -88,10 +88,31 @@ export default function Registration() {
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [photoProcessing, setPhotoProcessing] = useState(false);
+  const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [registrationLoading, setRegistrationLoading] = useState(true);
 
   const fileInputRef = useRef(null);
 
   const email = user?.email || "";
+
+  /* ─── Check if registrations are open ─── */
+  useEffect(() => {
+    async function checkRegistrationStatus() {
+      try {
+        const { data } = await supabase
+          .from("site_settings")
+          .select("value")
+          .eq("key", "registration_open")
+          .maybeSingle();
+        if (data) setRegistrationOpen(data.value === true);
+      } catch {
+        // Default to open if table doesn't exist yet
+      } finally {
+        setRegistrationLoading(false);
+      }
+    }
+    checkRegistrationStatus();
+  }, []);
 
   /* ─── Load existing registration on mount ─── */
   useEffect(() => {
@@ -367,10 +388,29 @@ export default function Registration() {
   }
 
   /* ─── Loading state while fetching existing record ─── */
-  if (loadingExisting) {
+  if (loadingExisting || registrationLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-olympus-gold" />
+      </div>
+    );
+  }
+
+  if (!registrationOpen && !isEditing) {
+    return (
+      <div className="mx-auto min-h-screen max-w-3xl px-4 pb-28 pt-28 sm:px-6">
+        <div className="flex flex-col items-center justify-center text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-amber-400/10 border border-amber-400/20">
+            <X className="h-10 w-10 text-amber-400" />
+          </div>
+          <h1 className="mt-6 font-display text-3xl font-bold text-white sm:text-4xl">
+            Registrations are currently closed
+          </h1>
+          <p className="mt-3 max-w-md text-olympus-muted">
+            Player registrations have been temporarily closed by the administrators.
+            Please check back later.
+          </p>
+        </div>
       </div>
     );
   }
@@ -495,6 +535,7 @@ export default function Registration() {
                 sportSelections={sportSelections}
                 toggleSport={toggleSport}
                 updateSport={updateSport}
+                gender={gender}
               />
             )}
             {step === 2 && (
@@ -697,7 +738,16 @@ function Step1PersonalDetails({
 /* ════════════════════════════════════════════════════════════
    STEP 2 — Choose Sports
    ════════════════════════════════════════════════════════════ */
-function Step2Sports({ sportSelections, toggleSport, updateSport }) {
+function Step2Sports({ sportSelections, toggleSport, updateSport, gender }) {
+  const allowedSports = SPORT_LIST.filter((sport) => {
+    if (gender !== "Female") return true;
+    return ![
+      "Basketball",
+      "Kabaddi",
+      "Arm Wrestling",
+    ].includes(sport.name);
+  });
+
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <p className="text-center text-sm text-olympus-muted">
@@ -706,7 +756,7 @@ function Step2Sports({ sportSelections, toggleSport, updateSport }) {
       </p>
 
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-3">
-        {SPORT_LIST.map((sport) => {
+        {allowedSports.map((sport) => {
           const sel = sportSelections[sport.name];
           const Icon = ICON_MAP[sport.icon] || CircleDot;
           const isSelected = !!sel?.selected;

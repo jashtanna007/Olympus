@@ -127,6 +127,27 @@ export function AuthProvider({ children }) {
       }
 
       clearAuthError();
+
+      // Check if roll number is in the campus whitelist
+      try {
+        const { data: eligible } = await supabase.rpc("check_roll_eligible", {
+          p_roll: identity.rollNumber,
+        });
+        if (eligible === false) {
+          setSession(null);
+          setUser(null);
+          setRole(null);
+          rememberAuthError(
+            "Your roll number is not in the approved list. Contact the administrators."
+          );
+          setLoading(false);
+          await supabase.auth.signOut();
+          return;
+        }
+      } catch {
+        // RPC may not exist yet (pre-migration); allow login
+      }
+
       setSession(nextSession);
       setUser(nextUser);
 

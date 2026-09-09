@@ -107,7 +107,7 @@ export default function Auction() {
       const [configResult, franchisesResult, playersResult, bidsResult, historyResult] = await Promise.all([
         supabase.from("auction_config").select("*").order("created_at").limit(1).maybeSingle(),
         supabase.from("franchises").select("*").order("display_order"),
-        supabase.from("auction_players").select("*, registration:player_registrations(*)").order("queue_order"),
+        supabase.from("auction_players").select("*, registration:player_registrations(*)").eq("auction_type", "franchise").order("queue_order"),
         supabase.from("auction_bids").select("*").order("created_at", { ascending: false }),
         isAdmin
           ? supabase.rpc("auction_history_state")

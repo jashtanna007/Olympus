@@ -5,6 +5,7 @@ import {
   Routes,
 } from "react-router-dom";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import AdminRoute from "./components/auth/AdminRoute";
 import GlobalLayout from "./components/layout/GlobalLayout";
 import { AuthProvider } from "./contexts/AuthContext";
 import Franchises from "./pages/Franchises";
@@ -20,6 +21,7 @@ import Registration from "./pages/Registration";
 import Auction from "./pages/Auction";
 import Retention from "./pages/Retention";
 import AuctionSummary from "./pages/AuctionSummary";
+import GirlsAuction from "./pages/GirlsAuction";
 
 export default function App() {
   return (
@@ -41,16 +43,8 @@ export default function App() {
                 element={<Franchises />}
               />
               <Route
-                path="/matches"
-                element={<Matches />}
-              />
-              <Route
                 path="/matches/:matchId"
                 element={<MatchLive />}
-              />
-              <Route
-                path="/scorer/:matchId"
-                element={<ScorerEntry />}
               />
               <Route
                 path="/leaderboard"
@@ -64,18 +58,34 @@ export default function App() {
                 path="/register"
                 element={<Registration />}
               />
-              <Route
-                path="/auction"
-                element={<Auction />}
-              />
-              <Route
-                path="/retention"
-                element={<Retention />}
-              />
-              <Route
-                path="/auction-summary"
-                element={<AuctionSummary />}
-              />
+
+              {/* Admin-only routes */}
+              <Route element={<AdminRoute />}>
+                <Route
+                  path="/matches"
+                  element={<Matches />}
+                />
+                <Route
+                  path="/scorer/:matchId"
+                  element={<ScorerEntry />}
+                />
+                <Route
+                  path="/auction"
+                  element={<Auction />}
+                />
+                <Route
+                  path="/retention"
+                  element={<Retention />}
+                />
+                <Route
+                  path="/auction-summary"
+                  element={<AuctionSummary />}
+                />
+                <Route
+                  path="/girls-auction"
+                  element={<GirlsAuction />}
+                />
+              </Route>
             </Route>
           </Route>
 

@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   FileSpreadsheet,
   Loader2,
+  ClipboardEdit,
 } from "lucide-react";
 import MagneticButton from "../ui/MagneticButton";
 import { downloadRegisteredPlayersWorkbook } from "../../utils/downloadRegisteredPlayersWorkbook";
@@ -23,9 +24,9 @@ import { useAuth } from "../../contexts/AuthContext";
 const NAV_LINKS = [
   { label: "Home", path: "/", icon: Home },
   { label: "Franchises", path: "/franchises", icon: Shield },
-  { label: "Matches", path: "/matches", icon: Swords },
+  { label: "Matches", path: "/matches", icon: Swords, adminOnly: true },
   { label: "Leaderboard", path: "/leaderboard", icon: BarChart3 },
-  { label: "Auction", path: "/auction", icon: Gavel },
+  { label: "Auction", path: "/auction", icon: Gavel, adminOnly: true },
   { label: "Profile", path: "/profile", icon: User },
 ];
 
@@ -44,6 +45,10 @@ export default function Navbar() {
   ] = useState(false);
 
   const isHomeDashboard = location.pathname === "/";
+
+  const visibleLinks = NAV_LINKS.filter(
+    (link) => !link.adminOnly || isAdmin
+  );
 
   // Hide on scroll down, show on scroll up, and track scroll position
   useEffect(() => {
@@ -64,10 +69,8 @@ export default function Navbar() {
       // Scroll threshold of 8px to prevent micro-jitter
       if (Math.abs(diff) > 8) {
         if (diff > 0) {
-          // Scrolling DOWN -> hide navbar smoothly
           setVisible(false);
         } else {
-          // Scrolling UP -> reveal navbar
           setVisible(true);
         }
         lastScrollY.current = currentScrollY;
@@ -91,46 +94,20 @@ export default function Navbar() {
   }, [mobileOpen]);
 
   const handleDownloadRegisteredPlayers = async () => {
-    if (
-      !isAdmin ||
-      !isHomeDashboard ||
-      registeredPlayersDownloading
-    ) {
-      return;
-    }
+    if (!isAdmin || !isHomeDashboard || registeredPlayersDownloading) return;
 
     setRegisteredPlayersDownloading(true);
-
     try {
-      const {
-        data: registrations,
-        error: registrationError,
-      } = await supabase
+      const { data: registrations, error: registrationError } = await supabase
         .from("player_registrations")
-        .select(
-          "id, full_name, roll_number, email, phone, gender, branch, year, sports, created_at"
-        )
-        .order("roll_number", {
-          ascending: true,
-        });
+        .select("id, full_name, roll_number, email, phone, gender, branch, year, sports, created_at")
+        .order("roll_number", { ascending: true });
 
-      if (registrationError) {
-        throw registrationError;
-      }
-
-      await downloadRegisteredPlayersWorkbook({
-        registrations: registrations || [],
-      });
+      if (registrationError) throw registrationError;
+      await downloadRegisteredPlayersWorkbook({ registrations: registrations || [] });
     } catch (downloadError) {
-      console.error(
-        "Registered-player workbook download failed:",
-        downloadError
-      );
-
-      window.alert(
-        downloadError?.message ||
-          "Unable to download the registered-player spreadsheet."
-      );
+      console.error("Registered-player workbook download failed:", downloadError);
+      window.alert(downloadError?.message || "Unable to download the registered-player spreadsheet.");
     } finally {
       setRegisteredPlayersDownloading(false);
     }
@@ -140,10 +117,7 @@ export default function Navbar() {
     <>
       <motion.header
         initial={{ y: -20, opacity: 0 }}
-        animate={{
-          y: visible ? 0 : -100,
-          opacity: visible ? 1 : 0,
-        }}
+        animate={{ y: visible ? 0 : -100, opacity: visible ? 1 : 0 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
           scrolled
@@ -171,26 +145,20 @@ export default function Navbar() {
 
             {/* Desktop links */}
             <div className="hidden items-center gap-1 md:flex">
-              {NAV_LINKS.map((link) => {
+              {visibleLinks.map((link) => {
                 const isActive = location.pathname === link.path;
                 return (
                   <Link
                     key={link.path}
                     to={link.path}
                     className="relative px-4 py-2 text-sm font-medium transition-colors"
-                    style={{
-                      color: isActive ? "#F4C84A" : "#A4A9B6",
-                    }}
+                    style={{ color: isActive ? "#F4C84A" : "#A4A9B6" }}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="nav-pill"
                         className="absolute inset-0 rounded-xl bg-white/[0.07]"
-                        transition={{
-                          type: "spring",
-                          stiffness: 380,
-                          damping: 30,
-                        }}
+                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
                       />
                     )}
                     <span className="relative z-10">{link.label}</span>
@@ -214,11 +182,8 @@ export default function Navbar() {
                   ) : (
                     <FileSpreadsheet className="h-4 w-4" />
                   )}
-
                   <span className="hidden xl:inline">
-                    {registeredPlayersDownloading
-                      ? "Preparing..."
-                      : "Registered Players"}
+                    {registeredPlayersDownloading ? "Preparing..." : "Registered Players"}
                   </span>
                 </button>
               )}
@@ -275,7 +240,7 @@ export default function Navbar() {
 
             {/* Menu links */}
             <nav className="flex flex-1 flex-col items-center justify-center gap-2 px-8">
-              {NAV_LINKS.map((link, i) => {
+              {visibleLinks.map((link, i) => {
                 const Icon = link.icon;
                 const isActive = location.pathname === link.path;
                 return (
@@ -295,15 +260,36 @@ export default function Navbar() {
                           : "text-white/70 hover:bg-white/5 hover:text-white"
                       }`}
                     >
-                      <Icon
-                        className="h-5 w-5"
-                        style={{ color: isActive ? "#F4C84A" : undefined }}
-                      />
+                      <Icon className="h-5 w-5" style={{ color: isActive ? "#F4C84A" : undefined }} />
                       {link.label}
                     </Link>
                   </motion.div>
                 );
               })}
+
+              {/* Register link in mobile menu */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 * visibleLinks.length, duration: 0.3 }}
+                className="w-full max-w-xs"
+              >
+                <Link
+                  to="/register"
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-4 rounded-2xl px-6 py-4 text-lg font-medium transition-all ${
+                    location.pathname === "/register"
+                      ? "glass-strong text-olympus-gold"
+                      : "text-white/70 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <ClipboardEdit
+                    className="h-5 w-5"
+                    style={{ color: location.pathname === "/register" ? "#F4C84A" : undefined }}
+                  />
+                  Register
+                </Link>
+              </motion.div>
             </nav>
 
             {/* Logo at bottom */}

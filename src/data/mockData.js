@@ -88,9 +88,9 @@ export const franchises = [
   {
     id: 4,
     displayOrder: 4,
-    name: "Shadow Warrior",
+    name: "Shadow Fangs",
     short: "SW",
-    logo: "/franchise-logos/shadow-warrior.webp",
+    logo: "/franchise-logos/shadow-fangs.webp",
 
     logoTransform: "scale(1.03)",
     iconName: "Swords",
@@ -100,10 +100,10 @@ export const franchises = [
     pool: null,
     overallRank: null,
     leader: {
-      name: "Akansh Yadav",
+      name: "Abhishek Beniwal",
       role: "Franchise Leader",
-      rollNumber: "20252504003",
-      email: "20252504003@diu.iiitvadodara.ac.in",
+      rollNumber: "202411002",
+      email: "202411002@diu.iiitvadodara.ac.in",
       image: null,
     },
     roster: [],

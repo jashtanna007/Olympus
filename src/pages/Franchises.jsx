@@ -108,7 +108,6 @@ export default function Franchises() {
         .map((player) => ({
           id: player.id,
           name: getJoinedRegistration(player)?.full_name || "Registered player",
-          rollNumber: getJoinedRegistration(player)?.roll_number || "—",
           photoUrl: getJoinedRegistration(player)?.photo_url || null,
           sports: getJoinedRegistration(player)?.sports || [],
           amount: player.sold_price,
@@ -119,8 +118,6 @@ export default function Franchises() {
         ? {
             name: leaderRow.full_name,
             role: "Franchise Leader",
-            rollNumber: leaderRow.roll_number,
-            email: leaderRow.institute_email,
             image: null,
           }
         : mock?.leader;
