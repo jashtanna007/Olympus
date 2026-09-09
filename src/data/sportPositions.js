@@ -37,6 +37,7 @@ export const SKILL_LEVELS = ["Beginner", "Intermediate", "Advanced"];
 export const BRANCHES = [
   "Computer Science and Engineering (CSE)",
   "Electronics and Communication Engineering (ECE)",
+  "Cyber Security",
   "Artificial Intelligence (AI)",
   "Master of Computer Applications (MCA)",
   "Master of Technology (M.Tech)",
