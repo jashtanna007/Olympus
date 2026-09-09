@@ -15,14 +15,14 @@ import FranchiseEmblem from "../components/common/FranchiseEmblem";
 
 const ALL_SPORTS = [
   "Cricket", "Football", "Basketball", "Volleyball",
-  "Badminton", "Table Tennis", "Kabaddi",
-  "Chess", "Carrom", "Relay", "Arm Wrestling",
+  "Badminton", "Table Tennis",
+  "Chess", "Carrom", "Relay",
 ];
 
 const SPORT_ICONS = {
   Cricket: "🏏", Football: "⚽", Basketball: "🏀", Volleyball: "🏐",
-  Badminton: "🏸", "Table Tennis": "🏓", Kabaddi: "🤼",
-  Chess: "♟️", Carrom: "🎯", Relay: "🏃", "Arm Wrestling": "💪",
+  Badminton: "🏸", "Table Tennis": "🏓",
+  Chess: "♟️", Carrom: "🎯", Relay: "🏃",
 };
 
 /* ── Helper: compute W/D/L/Pts per franchise per sport ── */
@@ -101,7 +101,7 @@ function RankBadge({ rank }) {
 
 /* ── Single leaderboard table ── */
 function StandingsTable({ rows, sport }) {
-  const showDiff = !["Chess", "Relay", "Arm Wrestling"].includes(sport) && sport !== "All";
+  const showDiff = !["Chess", "Relay"].includes(sport) && sport !== "All";
 
   return (
     <div className="rounded-2xl glass overflow-hidden overflow-x-auto">
@@ -422,12 +422,12 @@ export default function Leaderboard() {
                     {selectedSport === "Basketball" && "Tiebreaker: Point Difference"}
                     {selectedSport === "Volleyball" && "Tiebreaker: Sets Won → Set Difference"}
                     {(selectedSport === "Badminton" || selectedSport === "Table Tennis") && "Tiebreaker: Games Won Difference"}
-                    {selectedSport === "Kabaddi" && "Tiebreaker: Total Points Difference"}
+                    
                     {selectedSport === "Cricket" && "Tiebreaker: NRR (Net Run Rate)"}
                     {selectedSport === "Chess" && "Tiebreaker: Direct head-to-head result"}
                     {selectedSport === "Carrom" && "Tiebreaker: Boards Won → Points Difference"}
                     {selectedSport === "Relay" && "Fastest cumulative time (tie = shared points)"}
-                    {selectedSport === "Arm Wrestling" && "Tiebreaker: Pulls Won Difference"}
+                    
                   </div>
                 )}
               </motion.div>

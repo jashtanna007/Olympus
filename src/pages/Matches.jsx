@@ -23,9 +23,7 @@ const SPORT_LUCIDE_ICONS = {
   "Table Tennis": CircleDot,
   Chess: Crown,
   Carrom: Target,
-  Kabaddi: Users,
   Relay: Flame,
-  "Arm Wrestling": Dumbbell,
 };
 
 function SportIcon({ sport, className = "h-3.5 w-3.5" }) {
@@ -114,7 +112,7 @@ function MatchCard({ match, franchises, isAdmin, onDelete }) {
 
 const SPORT_OPTIONS = [
   "Cricket", "Football", "Volleyball", "Basketball", "Badminton", "Table Tennis",
-  "Chess", "Carrom", "Kabaddi", "Relay", "Arm Wrestling",
+  "Chess", "Carrom", "Relay",
 ];
 
 function CreateMatchModal({ franchiseList, onClose, onCreated }) {
@@ -143,15 +141,8 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
   // Carrom
   const [carromBoards, setCarromBoards] = useState(1);
   const [queenPoints, setQueenPoints] = useState(3);
-  // Kabaddi
-  const [kabaddiHalfMinutes, setKabaddiHalfMinutes] = useState(10);
-  const [kabaddiAlloutBonus, setKabaddiAlloutBonus] = useState(2);
   // Relay
   const [relayLegs, setRelayLegs] = useState(4);
-  // Arm Wrestling
-  const [armPulls, setArmPulls] = useState(3);
-  const [armSide, setArmSide] = useState("right");
-  const [weightClass, setWeightClass] = useState("");
 
   const [venue, setVenue] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -185,12 +176,8 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
         return { time_control: timeControl || null, armageddon: Boolean(armageddon) };
       case "Carrom":
         return { boards: Number(carromBoards), queen_points: Number(queenPoints) };
-      case "Kabaddi":
-        return { halves: 2, half_minutes: Number(kabaddiHalfMinutes), allout_bonus: Number(kabaddiAlloutBonus) };
       case "Relay":
         return { legs: Number(relayLegs) };
-      case "Arm Wrestling":
-        return { pulls: Number(armPulls), arms: armSide, weight_class: weightClass || null };
       default:
         return {};
     }
@@ -213,7 +200,6 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
       : sport === "Volleyball" ? 6
       : sport === "Football" ? 11
       : sport === "Basketball" ? 5
-      : sport === "Kabaddi" ? 7
       : sport === "Relay" ? Number(relayLegs)
       : 2;
     if (selectedA.size > sideLimit || selectedB.size > sideLimit) {
@@ -450,47 +436,7 @@ function CreateMatchModal({ franchiseList, onClose, onCreated }) {
                 </Field>
               </div>
             )}
-            {sport === "Kabaddi" && (
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Minutes per half">
-                  <input type="number" min="1" max="20" value={kabaddiHalfMinutes} onChange={(e) => setKabaddiHalfMinutes(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label="All-out bonus">
-                  <input type="number" min="1" max="4" value={kabaddiAlloutBonus} onChange={(e) => setKabaddiAlloutBonus(e.target.value)} className={inputCls} />
-                </Field>
-              </div>
-            )}
-            {sport === "Relay" && (
-              <Field label="Legs">
-                <select value={relayLegs} onChange={(e) => setRelayLegs(Number(e.target.value))} className={inputCls}>
-                  <option value={4}>4 legs (4×100)</option>
-                  <option value={6}>6 legs</option>
-                  <option value={2}>2 legs</option>
-                </select>
-              </Field>
-            )}
-            {sport === "Arm Wrestling" && (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Format">
-                    <select value={armPulls} onChange={(e) => setArmPulls(Number(e.target.value))} className={inputCls}>
-                      <option value={3}>Best of 3 pulls</option>
-                      <option value={5}>Best of 5 pulls</option>
-                    </select>
-                  </Field>
-                  <Field label="Arm">
-                    <select value={armSide} onChange={(e) => setArmSide(e.target.value)} className={inputCls}>
-                      <option value="right">Right</option>
-                      <option value="left">Left</option>
-                      <option value="both">Both</option>
-                    </select>
-                  </Field>
-                </div>
-                <Field label="Weight class (optional)">
-                  <input value={weightClass} onChange={(e) => setWeightClass(e.target.value)} className={inputCls} placeholder="e.g. U-70kg" />
-                </Field>
-              </div>
-            )}
+
             <Field label="Venue (optional)"><input value={venue} onChange={(e) => setVenue(e.target.value)} className={inputCls} placeholder="Main Ground" /></Field>
             <Field label="Schedule (optional)">
               <div className="relative">

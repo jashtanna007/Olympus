@@ -234,9 +234,7 @@ export const sports = [
   { name: "Table Tennis", iconName: "Disc" },
   { name: "Chess", iconName: "Crown" },
   { name: "Carrom", iconName: "Crosshair" },
-  { name: "Kabaddi", iconName: "Users" },
   { name: "Relay", iconName: "Timer" },
-  { name: "Arm Wrestling", iconName: "Dumbbell" },
 ];
 
 // ─── Helper: Get teams by pool, sorted by rank for a given sport ───

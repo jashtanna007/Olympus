@@ -135,12 +135,11 @@ export default function Navbar() {
           >
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-olympus-gold to-olympus-gold/40">
-                <Trophy className="h-4 w-4 text-olympus-bg" strokeWidth={2.5} />
-              </span>
-              <span className="font-display text-base font-bold tracking-[0.2em] text-white sm:text-lg">
-                OLYMPUS
-              </span>
+              <img
+                src="/olympus-logo.png"
+                alt="Olympus"
+                className="h-10 w-10 object-contain"
+              />
             </Link>
 
             {/* Desktop links */}

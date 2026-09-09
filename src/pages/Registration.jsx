@@ -743,8 +743,6 @@ function Step2Sports({ sportSelections, toggleSport, updateSport, gender }) {
     if (gender !== "Female") return true;
     return ![
       "Basketball",
-      "Kabaddi",
-      "Arm Wrestling",
     ].includes(sport.name);
   });
 

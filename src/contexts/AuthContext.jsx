@@ -9,7 +9,6 @@ import {
 import { supabase } from "../lib/supabase";
 import { ROLE_PERMISSIONS, ROLES } from "../data/mockData";
 import {
-  INSTITUTE_DOMAIN,
   parseInstituteEmail,
 } from "../utils/instituteEmail";
 
@@ -99,6 +98,9 @@ export function AuthProvider({ children }) {
   const synchronizeSession = useCallback(
     async (nextSession) => {
       const nextUser = nextSession?.user ?? null;
+
+      console.log("AUTH DEBUG USER:", nextUser);
+      console.log("AUTH DEBUG EMAIL:", nextUser?.email);
 
       if (!nextUser) {
         setSession(null);
@@ -210,7 +212,6 @@ export function AuthProvider({ children }) {
       options: {
         redirectTo,
         queryParams: {
-          hd: INSTITUTE_DOMAIN,
           prompt: "select_account",
         },
       },

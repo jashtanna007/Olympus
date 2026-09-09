@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { supabase } from "../lib/supabase";
 
 function readProviderError(location) {
   const search = new URLSearchParams(location.search);
@@ -24,33 +25,60 @@ export default function AuthCallback() {
   const { user, loading, authError } = useAuth();
 
   useEffect(() => {
-    const providerError = readProviderError(location);
+    console.log("CALLBACK URL:", window.location.href);
+    console.log("CALLBACK SEARCH:", location.search);
 
-    if (providerError) {
-      navigate("/login", {
-        replace: true,
-        state: {
-          authError: decodeURIComponent(providerError),
-        },
-      });
-      return;
+    async function handleCallback() {
+      const providerError = readProviderError(location);
+
+      if (providerError) {
+        navigate("/login", {
+          replace: true,
+          state: {
+            authError: decodeURIComponent(providerError),
+          },
+        });
+        return;
+      }
+
+      const params = new URLSearchParams(location.search);
+      const code = params.get("code");
+
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+        if (error) {
+          console.error("OAuth code exchange failed:", error);
+          navigate("/login", {
+            replace: true,
+            state: {
+              authError: error.message,
+            },
+          });
+          return;
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      if (user) {
+        navigate("/", { replace: true });
+        return;
+      }
+
+      if (!loading) {
+        navigate("/login", {
+          replace: true,
+          state: {
+            authError:
+              authError ||
+              "Google sign-in could not be completed.",
+          },
+        });
+      }
     }
 
-    if (loading) return;
-
-    if (user) {
-      navigate("/", { replace: true });
-      return;
-    }
-
-    navigate("/login", {
-      replace: true,
-      state: {
-        authError:
-          authError ||
-          "Google sign-in could not be completed.",
-      },
-    });
+    void handleCallback();
   }, [authError, loading, location, navigate, user]);
 
   return (

@@ -24,9 +24,7 @@ const GENERIC_EVENT_SPORTS = new Set([
   "Table Tennis",
   "Chess",
   "Carrom",
-  "Kabaddi",
   "Relay",
-  "Arm Wrestling",
 ]);
 
 const GENERIC_TABLE = "match_sport_events";
@@ -652,9 +650,7 @@ export function genericEventLabel(e) {
 
 
 export const restrictedGirlsSports = [
-  "Basketball",
-  "Kabaddi",
-  "Arm Wrestling"
+  "Basketball"
 ];
 
 export const girlsIndividualSports = [

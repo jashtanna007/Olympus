@@ -121,12 +121,11 @@ export default function Login() {
         className="relative z-10 w-full max-w-md rounded-3xl glass-strong p-8 sm:p-10"
       >
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-olympus-gold to-olympus-gold/40">
-            <Trophy
-              className="h-6 w-6 text-olympus-bg"
-              strokeWidth={2.5}
-            />
-          </div>
+          <img
+            src="/olympus-logo.png"
+            alt="Olympus"
+            className="mx-auto mb-2 h-24 w-24 object-contain"
+          />
 
           <h1 className="font-display text-4xl font-bold tracking-wider text-gradient-gold sm:text-5xl">
             OLYMPUS
@@ -137,19 +136,17 @@ export default function Login() {
           </p>
         </div>
 
-        <div className="mt-7 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+        <div className="mt-5 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-3">
           <div className="flex items-start gap-3">
-            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-olympus-gold" />
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-olympus-gold" />
 
             <div>
-              <h2 className="text-sm font-semibold text-white">
+              <h2 className="text-[11px] font-semibold text-white">
                 Institute accounts only
               </h2>
 
-              <p className="mt-1 text-xs leading-5 text-olympus-muted">
-                For initial testing, roll numbers{" "}
-                {TEST_BATCH_FIRST_ROLL} to{" "}
-                {TEST_BATCH_LAST_ROLL} are enabled.
+              <p className="mt-1 text-[11px] leading-4 text-olympus-muted">
+                Only eligible IIIT Vadodara institute accounts can access Olympus.
               </p>
             </div>
           </div>

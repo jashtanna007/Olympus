@@ -13,13 +13,11 @@ export const SPORT_POSITIONS = {
     "Power Forward",
     "Center",
   ],
-  Kabaddi: ["Raider", "Defender", "All-Rounder"],
   "Table Tennis": null,
   Badminton: null,
   Carrom: null,
   Chess: null,
   Relay: null,
-  "Arm Wrestling": null,
 };
 
 export const SPORT_LIST = [
@@ -27,13 +25,11 @@ export const SPORT_LIST = [
   { name: "Football", icon: "CircleDot" },
   { name: "Volleyball", icon: "Globe" },
   { name: "Basketball", icon: "Target" },
-  { name: "Kabaddi", icon: "Users" },
   { name: "Table Tennis", icon: "Disc" },
   { name: "Badminton", icon: "Feather" },
   { name: "Carrom", icon: "Crosshair" },
   { name: "Chess", icon: "Crown" },
   { name: "Relay", icon: "Timer" },
-  { name: "Arm Wrestling", icon: "Dumbbell" },
 ];
 
 export const SKILL_LEVELS = ["Beginner", "Intermediate", "Advanced"];
