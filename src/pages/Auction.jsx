@@ -184,21 +184,33 @@ export default function Auction() {
     const fid = String(franchiseId);
     setBidPending(true);
 
+    // --- Optimistic update: show the new bid immediately without waiting ---
+    const optimisticBid = {
+      id: `optimistic-${Date.now()}`,
+      auction_player_id: auctionConfig.current_player_id,
+      franchise_id: franchiseId,
+      amount: nextBidAmount,
+      created_at: new Date().toISOString(),
+      _optimistic: true,
+    };
+    setBids((prev) => [optimisticBid, ...prev]);
+    setFlashFid(fid);
+    setTimeout(() => setFlashFid(null), 1200);
+
     try {
       const { error } = await supabase.rpc("auction_place_bid", {
         p_franchise_id: franchiseId,
       });
 
       if (error) {
+        // Rollback optimistic update on failure
+        setBids((prev) => prev.filter((b) => b.id !== optimisticBid.id));
         console.error("Bid rejected:", error);
         alert(error.message);
         await refreshAuctionData();
-        return;
       }
-
-      setFlashFid(fid);
-      setTimeout(() => setFlashFid(null), 1200);
-      await refreshAuctionData();
+      // On success: realtime channel fires within ~150ms and replaces the
+      // optimistic row with the real DB row via refreshSoon()
     } finally {
       setBidPending(false);
     }
@@ -207,6 +219,8 @@ export default function Auction() {
     bidPending,
     isAdmin,
     highestBidderFranchise,
+    auctionConfig,
+    nextBidAmount,
     refreshAuctionData,
   ]);
 

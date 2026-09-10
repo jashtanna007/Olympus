@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
-import { Gavel, Handshake, Shield } from "lucide-react";
+import { Handshake, Shield } from "lucide-react";
 import GlassCard from "../ui/GlassCard";
 import FranchiseEmblem from "../common/FranchiseEmblem";
 import { franchises } from "../../data/mockData";
+import AuctionFeedPanel from "./AuctionFeedPanel";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -54,26 +55,7 @@ export default function QuickInfoPanel() {
       </motion.div>
 
       <motion.div variants={fadeUp}>
-        <GlassCard variant="strong" className="h-full p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-olympus-blue/10">
-              <Gavel className="h-4 w-4 text-olympus-blue" />
-            </div>
-            <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-olympus-muted">
-              Auction Status
-            </h3>
-          </div>
-
-          <div className="flex h-[calc(100%-3rem)] min-h-36 flex-col items-center justify-center rounded-2xl glass-dark px-5 text-center">
-            <Gavel className="h-7 w-7 text-olympus-gold/70" />
-            <strong className="mt-3 text-sm text-white/90">
-              Leaders confirmed
-            </strong>
-            <p className="mt-2 text-xs leading-relaxed text-olympus-subtle">
-              Pools and player rosters will be published after the auction.
-            </p>
-          </div>
-        </GlassCard>
+        <AuctionFeedPanel />
       </motion.div>
 
       <motion.div variants={fadeUp}>

@@ -59,6 +59,20 @@ export default function App() {
                 element={<Registration />}
               />
 
+              {/* Auction: read-only for viewers, full controls for admin */}
+              <Route
+                path="/auction"
+                element={<Auction />}
+              />
+              <Route
+                path="/auction-summary"
+                element={<AuctionSummary />}
+              />
+              <Route
+                path="/girls-auction"
+                element={<GirlsAuction />}
+              />
+
               {/* Admin-only routes */}
               <Route element={<AdminRoute />}>
                 <Route
@@ -70,20 +84,8 @@ export default function App() {
                   element={<ScorerEntry />}
                 />
                 <Route
-                  path="/auction"
-                  element={<Auction />}
-                />
-                <Route
                   path="/retention"
                   element={<Retention />}
-                />
-                <Route
-                  path="/auction-summary"
-                  element={<AuctionSummary />}
-                />
-                <Route
-                  path="/girls-auction"
-                  element={<GirlsAuction />}
                 />
               </Route>
             </Route>

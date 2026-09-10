@@ -15,6 +15,8 @@ import {
   FileSpreadsheet,
   Loader2,
   ClipboardEdit,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import MagneticButton from "../ui/MagneticButton";
 import { downloadRegisteredPlayersWorkbook } from "../../utils/downloadRegisteredPlayersWorkbook";
@@ -26,7 +28,7 @@ const NAV_LINKS = [
   { label: "Franchises", path: "/franchises", icon: Shield },
   { label: "Matches", path: "/matches", icon: Swords, adminOnly: true },
   { label: "Leaderboard", path: "/leaderboard", icon: BarChart3 },
-  { label: "Auction", path: "/auction", icon: Gavel, adminOnly: true },
+  { label: "Auction", path: "/auction", icon: Gavel, auctionLink: true },
   { label: "Profile", path: "/profile", icon: User },
 ];
 
@@ -38,6 +40,8 @@ export default function Navbar() {
   const [visible, setVisible] = useState(true);
   const [scrolled, setScrolled] = useState(false);
   const lastScrollY = useRef(0);
+  const [auctionVisibleToViewers, setAuctionVisibleToViewers] = useState(false);
+  const [auctionTogglePending, setAuctionTogglePending] = useState(false);
 
   const [
     registeredPlayersDownloading,
@@ -46,9 +50,54 @@ export default function Navbar() {
 
   const isHomeDashboard = location.pathname === "/";
 
-  const visibleLinks = NAV_LINKS.filter(
-    (link) => !link.adminOnly || isAdmin
-  );
+  // Fetch auction viewer visibility setting
+  useEffect(() => {
+    supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "auction_visible_to_viewers")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setAuctionVisibleToViewers(Boolean(data.value));
+      })
+      .catch(() => {});
+
+    const ch = supabase
+      .channel("navbar-site-settings")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "site_settings" },
+        (payload) => {
+          if (payload.new?.key === "auction_visible_to_viewers") {
+            setAuctionVisibleToViewers(Boolean(payload.new.value));
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  const toggleAuctionAccess = async () => {
+    if (!isAdmin || auctionTogglePending) return;
+    setAuctionTogglePending(true);
+    try {
+      const { error } = await supabase.rpc("toggle_auction_viewer_access", {
+        p_visible: !auctionVisibleToViewers,
+      });
+      if (error) throw error;
+      // Realtime will update the state automatically
+    } catch (e) {
+      alert(e.message || "Failed to toggle auction access");
+    } finally {
+      setAuctionTogglePending(false);
+    }
+  };
+
+  const visibleLinks = NAV_LINKS.filter((link) => {
+    if (link.adminOnly) return isAdmin;
+    if (link.auctionLink) return isAdmin || auctionVisibleToViewers;
+    return true;
+  });
 
   // Hide on scroll down, show on scroll up, and track scroll position
   useEffect(() => {
@@ -184,6 +233,30 @@ export default function Navbar() {
                   <span className="hidden xl:inline">
                     {registeredPlayersDownloading ? "Preparing..." : "Registered Players"}
                   </span>
+                </button>
+              )}
+
+              {/* Admin: toggle auction viewer access */}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={toggleAuctionAccess}
+                  disabled={auctionTogglePending}
+                  title={auctionVisibleToViewers ? "Auction visible to viewers — click to hide" : "Auction hidden from viewers — click to show"}
+                  className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-[10px] font-black uppercase tracking-wide transition disabled:opacity-50 ${
+                    auctionVisibleToViewers
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                      : "border-white/10 bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/70"
+                  }`}
+                >
+                  {auctionTogglePending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : auctionVisibleToViewers ? (
+                    <Eye className="h-3.5 w-3.5" />
+                  ) : (
+                    <EyeOff className="h-3.5 w-3.5" />
+                  )}
+                  <span className="hidden xl:inline">Auction</span>
                 </button>
               )}
 
