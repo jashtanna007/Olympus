@@ -12,8 +12,8 @@ export default function Home() {
 
   const heroStats = [
     { label: "Franchises", value: "8", icon: Shield },
-    { label: "Events / Sports", value: "11", icon: Trophy },
-    { label: "Participants", value: "1000+", icon: Users },
+    { label: "Events / Sports", value: "9", icon: Trophy },
+    { label: "Participants", value: "300+", icon: Users },
     { label: "Days of Glory", value: "5", icon: Calendar },
   ];
 
