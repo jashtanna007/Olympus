@@ -41,6 +41,7 @@ export const BRANCHES = [
   "Artificial Intelligence (AI)",
   "Master of Computer Applications (MCA)",
   "Master of Technology (M.Tech)",
+  "Doctor of Philosophy (Ph.D.)",
 ];
 
 export const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
