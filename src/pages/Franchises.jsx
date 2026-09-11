@@ -17,45 +17,26 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
-function getJoinedRegistration(row) {
-  const raw = row?.registration || row?.player_registrations;
-  return Array.isArray(raw) ? raw[0] || null : raw || null;
-}
-
 export default function Franchises() {
   const [selectedFranchise, setSelectedFranchise] = useState(null);
   const [dbFranchises, setDbFranchises] = useState([]);
   const [members, setMembers] = useState([]);
-  const [auctionPlayers, setAuctionPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const loadFranchises = useCallback(async () => {
     setError("");
     try {
-      const [franchiseResult, memberResult, playerResult] = await Promise.all([
+      const [franchiseResult, memberResult] = await Promise.all([
         supabase.from("franchises").select("*").order("display_order"),
-        supabase
-          .from("franchise_members")
-          .select("id, franchise_id, full_name, roll_number, institute_email, role, display_order, is_active")
-          .eq("is_active", true)
-          .order("display_order"),
-        supabase
-          .from("auction_players")
-          .select(
-            "id, status, sold_price, sold_at, sold_to_franchise_id, registration:player_registrations(id, full_name, roll_number, photo_url, sports)"
-          )
-          .in("status", ["sold", "retained"])
-          .order("sold_at", { ascending: true, nullsFirst: false }),
+        supabase.rpc("get_franchise_display_members"),
       ]);
 
       if (franchiseResult.error) throw franchiseResult.error;
       if (memberResult.error) throw memberResult.error;
-      if (playerResult.error) throw playerResult.error;
 
       setDbFranchises(franchiseResult.data || []);
       setMembers(memberResult.data || []);
-      setAuctionPlayers(playerResult.data || []);
     } catch (loadError) {
       console.error("Franchise roster load failed:", loadError);
       setError(loadError.message || "Unable to load franchise rosters.");
@@ -99,24 +80,25 @@ export default function Franchises() {
         (member) =>
           String(member.franchise_id) === String(franchise.id) && member.role === "leader"
       );
-      const roster = auctionPlayers
+      const roster = members
         .filter(
-          (player) =>
-            String(player.sold_to_franchise_id) === String(franchise.id) &&
-            ["sold", "retained"].includes(player.status)
+          (member) =>
+            String(member.franchise_id) === String(franchise.id) &&
+            member.role === "player"
         )
-        .map((player) => ({
-          id: player.id,
-          name: getJoinedRegistration(player)?.full_name || "Registered player",
-          photoUrl: getJoinedRegistration(player)?.photo_url || null,
-          sports: getJoinedRegistration(player)?.sports || [],
-          amount: player.sold_price,
-          status: player.status,
+        .map((member) => ({
+          id: member.id,
+          name: member.display_name || member.roll_number,
+          photoUrl: member.photo_url || null,
+          sports: Array.isArray(member.sports) ? member.sports : [],
+          amount: member.purchase_price,
+          status: "sold",
+          rollNumber: member.roll_number,
         }));
 
       const leader = leaderRow
         ? {
-            name: leaderRow.full_name,
+            name: leaderRow.display_name || leaderRow.roll_number,
             role: "Franchise Leader",
             image: null,
           }
@@ -134,7 +116,7 @@ export default function Franchises() {
           Number(franchise.total_budget || 0) - Number(franchise.spent_amount || 0),
       };
     });
-  }, [auctionPlayers, dbFranchises, members]);
+  }, [dbFranchises, members]);
 
   useEffect(() => {
     if (!selectedFranchise) return;
