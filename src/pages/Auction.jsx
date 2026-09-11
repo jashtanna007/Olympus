@@ -208,9 +208,16 @@ export default function Auction() {
         console.error("Bid rejected:", error);
         alert(error.message);
         await refreshAuctionData();
+        return;
       }
-      // On success: realtime channel fires within ~150ms and replaces the
-      // optimistic row with the real DB row via refreshSoon()
+
+      // Every accepted bid is written to auction_action_history by the RPC,
+      // so Undo is immediately available. Do not rely only on realtime.
+      setCanUndo(true);
+      setCanRedo(false);
+
+      // Replace the optimistic bid and refresh history state immediately.
+      await refreshAuctionData();
     } finally {
       setBidPending(false);
     }
