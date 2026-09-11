@@ -1,7 +1,8 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Eye } from "lucide-react";
-import { franchises } from "../../data/mockData";
+import { franchises as mockFranchises } from "../../data/mockData";
+import { supabase } from "../../lib/supabase";
 import FranchiseEmblem from "../common/FranchiseEmblem";
 
 export default function FranchiseSlider({ onFranchiseClick }) {
@@ -10,6 +11,128 @@ export default function FranchiseSlider({ onFranchiseClick }) {
   const [isDown, setIsDown] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
+  const [liveFranchises, setLiveFranchises] = useState([]);
+
+  const loadLiveFranchises = useCallback(async () => {
+    try {
+      const [franchiseResult, memberResult] = await Promise.all([
+        supabase
+          .from("franchises")
+          .select("*")
+          .order("display_order"),
+        supabase.rpc("get_franchise_display_members"),
+      ]);
+
+      if (franchiseResult.error) throw franchiseResult.error;
+      if (memberResult.error) throw memberResult.error;
+
+      const dbFranchises = franchiseResult.data || [];
+      const members = memberResult.data || [];
+
+      const enriched = dbFranchises.map((franchise) => {
+        const mock = mockFranchises.find(
+          (item) =>
+            item.name === franchise.name ||
+            String(item.id) === String(franchise.id)
+        );
+
+        const leaderRow = members.find(
+          (member) =>
+            String(member.franchise_id) === String(franchise.id) &&
+            member.role === "leader"
+        );
+
+        const roster = members
+          .filter(
+            (member) =>
+              String(member.franchise_id) === String(franchise.id) &&
+              member.role === "player"
+          )
+          .map((member) => ({
+            id: member.id,
+            name: member.display_name || member.roll_number,
+            rollNumber: member.roll_number,
+            photoUrl: member.photo_url || null,
+            sports: Array.isArray(member.sports) ? member.sports : [],
+            amount: member.purchase_price,
+            status: "sold",
+          }));
+
+        return {
+          ...mock,
+          ...franchise,
+          short: mock?.short || franchise.short_code,
+          logo: mock?.logo,
+          color:
+            mock?.color ||
+            franchise.primary_color ||
+            "#F4C84A",
+          secondaryColor:
+            mock?.secondaryColor ||
+            franchise.secondary_color ||
+            "#2563EB",
+          leader: leaderRow
+            ? {
+                name:
+                  leaderRow.display_name ||
+                  leaderRow.roll_number,
+                role: "Franchise Leader",
+                image: null,
+              }
+            : mock?.leader,
+          roster,
+          remainingBudget:
+            Number(franchise.total_budget || 0) -
+            Number(franchise.spent_amount || 0),
+        };
+      });
+
+      setLiveFranchises(enriched);
+    } catch (error) {
+      console.error("Homepage franchise load failed:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLiveFranchises();
+
+    let refreshTimeout;
+
+    const refreshSoon = () => {
+      clearTimeout(refreshTimeout);
+      refreshTimeout = setTimeout(
+        () => void loadLiveFranchises(),
+        150
+      );
+    };
+
+    const channel = supabase
+      .channel("homepage-franchise-rosters")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "franchises" },
+        refreshSoon
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "franchise_members" },
+        refreshSoon
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "auction_players" },
+        refreshSoon
+      )
+      .subscribe();
+
+    return () => {
+      clearTimeout(refreshTimeout);
+      supabase.removeChannel(channel);
+    };
+  }, [loadLiveFranchises]);
+
+  const franchises =
+    liveFranchises.length > 0 ? liveFranchises : mockFranchises;
 
   const scrollToIndex = useCallback((index) => {
     if (!trackRef.current) return;
