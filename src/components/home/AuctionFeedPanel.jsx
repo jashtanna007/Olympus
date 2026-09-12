@@ -199,37 +199,47 @@ export default function AuctionFeedPanel() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const mountedRef = useRef(true);
 
-  // Initial load
-  const loadFeed = useCallback(async () => {
+  // Load sold/unsold player events — runs independently of announcements
+  const loadPlayers = useCallback(async () => {
     try {
-      const [{ data: ap }, { data: ann }, { data: fran }] = await Promise.all([
+      const [{ data: ap }, { data: fran }] = await Promise.all([
         supabase
           .from("auction_players")
           .select("id, status, sold_to_franchise_id, sold_price, updated_at, registration:player_registrations(full_name)")
           .in("status", ["sold", "unsold"])
           .order("updated_at", { ascending: false })
           .limit(30),
-        supabase
-          .from("auction_announcements")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(30),
         supabase.from("franchises").select("id, name, short_code"),
       ]);
       if (!mountedRef.current) return;
-      setPlayers(ap || []);
-      setAnnouncements(ann || []);
-      setDbFranchises(fran || []);
+      if (ap) setPlayers(ap);
+      if (fran) setDbFranchises(fran);
     } catch {
-      // Non-critical; silently fail
+      // Non-critical — silently fail
+    }
+  }, []);
+
+  // Load announcements — silently fails if table doesn't exist yet
+  const loadAnnouncements = useCallback(async () => {
+    try {
+      const { data: ann } = await supabase
+        .from("auction_announcements")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (!mountedRef.current) return;
+      if (ann) setAnnouncements(ann);
+    } catch {
+      // auction_announcements table may not exist yet — ignore
     }
   }, []);
 
   useEffect(() => {
     mountedRef.current = true;
-    void loadFeed();
+    void loadPlayers();
+    void loadAnnouncements();
     return () => { mountedRef.current = false; };
-  }, [loadFeed]);
+  }, [loadPlayers, loadAnnouncements]);
 
   // Realtime subscriptions
   useEffect(() => {
@@ -240,12 +250,9 @@ export default function AuctionFeedPanel() {
         { event: "UPDATE", schema: "public", table: "auction_players" },
         (payload) => {
           if (!mountedRef.current) return;
-          const p = payload.new;
-          if (["sold", "unsold"].includes(p.status)) {
-            setPlayers((prev) => {
-              const without = prev.filter((x) => x.id !== p.id);
-              return [p, ...without].slice(0, 30);
-            });
+          // Refetch with registration join so player name shows correctly
+          if (["sold", "unsold"].includes(payload.new?.status)) {
+            void loadPlayers();
           }
         }
       )
@@ -259,7 +266,7 @@ export default function AuctionFeedPanel() {
       )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, []);
+  }, [loadPlayers]);
 
   // Build unified feed, sorted newest first
   const feed = useMemo(() => {

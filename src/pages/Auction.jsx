@@ -636,10 +636,17 @@ export default function Auction() {
             </h3>
             <div className="grid grid-cols-4 gap-2 lg:grid-cols-8">
               {enrichedFranchises.map((f) => {
-                const fid      = String(f.id);
-                const isHighest = highestBidderFranchise && String(highestBidderFranchise.id) === fid;
+                const fid        = String(f.id);
+                const isHighest  = highestBidderFranchise && String(highestBidderFranchise.id) === fid;
                 const isFlashing = fid === String(flashFid);
-                const remaining = (f.total_budget || 10000) - (f.spent_amount || 0);
+                const remaining  = (f.total_budget || 10000) - (f.spent_amount || 0);
+
+                // Minimum squad tracking (35 combined male+female, leader counts as 1)
+                const roster   = rosterCountsByFranchise[fid] || 0;
+                const needed   = Math.max(0, 35 - roster - 1); // -1 for the franchise leader
+                const reserved = needed * (auctionConfig?.base_price ?? 200);
+                const isDanger  = needed > 0 && remaining < reserved;          // can't even do base price
+                const isWarning = needed > 0 && !isDanger && remaining <= reserved; // exactly at base-price limit
 
                 return (
                   <motion.div key={f.id}
@@ -662,6 +669,24 @@ export default function Auction() {
                     <p className="mt-0.5 text-[12px] font-extrabold text-emerald-300">
                       ₹ {remaining.toLocaleString("en-IN")}
                     </p>
+
+                    {/* Min-35 tracker */}
+                    {needed > 0 && (
+                      <p className="mt-0.5 text-[8px] font-bold text-white/40">
+                        Needs <span className="text-white/70">{needed}</span> more
+                      </p>
+                    )}
+                    {isDanger && (
+                      <span className="mt-0.5 rounded-full bg-rose-500/20 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wide text-rose-400">
+                        🔴 Can't fill squad
+                      </span>
+                    )}
+                    {isWarning && (
+                      <span className="mt-0.5 rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wide text-amber-400">
+                        ⚠️ Base price only
+                      </span>
+                    )}
+
                     <button onClick={() => placeBidForFranchise(f.id)}
                       disabled={!currentPlayer || !isAdmin || bidPending || isHighest}
                       className={`mt-1.5 w-full rounded-lg py-1 text-[9px] font-black uppercase tracking-wide transition disabled:opacity-30 disabled:cursor-not-allowed ${
