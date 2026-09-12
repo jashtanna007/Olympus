@@ -305,6 +305,7 @@ function buildUnsoldPlayersTable({
 export async function downloadAuctionWorkbook({
   summary,
   unsoldPlayers = [],
+  auctionLabel = "All",
 }) {
   const ExcelJSModule = await import("exceljs");
   const ExcelJS =
@@ -313,8 +314,8 @@ export async function downloadAuctionWorkbook({
   const workbook = new ExcelJS.Workbook();
 
   workbook.creator = "Olympus";
-  workbook.title = "Olympus Auction Summary";
-  workbook.subject = "Franchise Auction Results";
+  workbook.title = `Olympus ${auctionLabel} Auction Summary`;
+  workbook.subject = `${auctionLabel} Auction Results`;
   workbook.created = new Date();
 
   const worksheet = workbook.addWorksheet(
@@ -383,7 +384,7 @@ export async function downloadAuctionWorkbook({
 
   link.href = downloadUrl;
   link.download =
-    `olympus-auction-summary-${new Date()
+    `olympus-${auctionLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-auction-summary-${new Date()
       .toISOString()
       .slice(0, 10)}.xlsx`;
 

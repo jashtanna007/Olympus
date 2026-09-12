@@ -227,13 +227,21 @@ export default function Profile() {
                   to="/auction"
                   className="flex items-center gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-4 py-2.5 text-xs font-bold text-amber-300 transition hover:bg-amber-400/10"
                 >
-                  <Gavel className="h-3.5 w-3.5" /> Franchise Auction
+                  <Gavel className="h-3.5 w-3.5" /> All Auction
                 </Link>
+
                 <Link
-                  to="/girls-auction"
+                  to="/auction?mode=female-football"
                   className="flex items-center gap-2 rounded-lg border border-pink-400/20 bg-pink-400/5 px-4 py-2.5 text-xs font-bold text-pink-300 transition hover:bg-pink-400/10"
                 >
-                  <Gavel className="h-3.5 w-3.5" /> Girls Individual Auction
+                  <Gavel className="h-3.5 w-3.5" /> Female Football Auction
+                </Link>
+
+                <Link
+                  to="/auction?mode=female-cricket"
+                  className="flex items-center gap-2 rounded-lg border border-pink-400/20 bg-pink-400/5 px-4 py-2.5 text-xs font-bold text-pink-300 transition hover:bg-pink-400/10"
+                >
+                  <Gavel className="h-3.5 w-3.5" /> Female Cricket Auction
                 </Link>
                 <Link
                   to="/matches"

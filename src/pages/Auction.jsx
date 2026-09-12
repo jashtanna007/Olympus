@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Gavel, Play, Pause, Shuffle, Shield, User, BadgeCheck, Star, ClipboardList,
@@ -10,6 +10,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 import { franchises as mockFranchises } from "../data/mockData";
 import FranchiseEmblem from "../components/common/FranchiseEmblem";
+import { AUCTION_MODES, FEMALE_AUCTION_FRANCHISE_SLUGS, resolveAuctionMode } from "../lib/auctionModes";
 
 /* ════════════════════════════════════════════════════════════
    LIVE AUCTION — Zero-scroll, all bugs fixed
@@ -18,6 +19,9 @@ export default function Auction() {
   const { canManageAuction } = useAuth();
   const isAdmin = canManageAuction;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const mode = resolveAuctionMode(searchParams.get("mode") || "all");
+  const isFemaleAuction = mode.femaleOnly;
 
   /* ─── State ─── */
   const [auctionConfig, setAuctionConfig]   = useState(null);
@@ -30,17 +34,22 @@ export default function Auction() {
   const [historyPending, setHistoryPending] = useState(false);
   const [canUndo, setCanUndo]               = useState(false);
   const [canRedo, setCanRedo]               = useState(false);
+  const [scopeBudgets, setScopeBudgets]       = useState([]);
 
   /* ─── Merge DB franchises with mock logo data ─── */
   // DB rows may not have logo/color fields → patch them from mockFranchises
   const enrichedFranchises = useMemo(() => {
-    return franchiseList.map((f) => {
-      const mock = mockFranchises.find(
-        (m) => m.id === f.id || m.name === f.name
-      );
-      return mock ? { ...mock, ...f, logo: mock.logo, color: mock.color, secondaryColor: mock.secondaryColor } : f;
-    });
-  }, [franchiseList]);
+    return franchiseList
+      .filter((f) => !isFemaleAuction || FEMALE_AUCTION_FRANCHISE_SLUGS.includes(f.slug))
+      .map((f) => {
+        const mock = mockFranchises.find((m) => m.id === f.id || m.name === f.name);
+        const budget = scopeBudgets.find((b) => String(b.franchise_id) === String(f.id));
+        const merged = mock ? { ...mock, ...f, logo: mock.logo, color: mock.color, secondaryColor: mock.secondaryColor } : f;
+        return isFemaleAuction && budget
+          ? { ...merged, total_budget: budget.total_budget, spent_amount: budget.spent_amount, max_players: budget.max_players }
+          : merged;
+      });
+  }, [franchiseList, isFemaleAuction, scopeBudgets]);
 
   /* ─── Derived: current player ─── */
   const currentPlayer = useMemo(() => {
@@ -104,24 +113,31 @@ export default function Auction() {
   const refreshAuctionData = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {
-      const [configResult, franchisesResult, playersResult, bidsResult, historyResult] = await Promise.all([
-        supabase.from("auction_config").select("*").order("created_at").limit(1).maybeSingle(),
+      const [configResult, franchisesResult, playersResult, bidsResult, historyResult, budgetsResult] = await Promise.all([
+        supabase.from("auction_config").select("*").eq("auction_type", mode.dbType).maybeSingle(),
         supabase.from("franchises").select("*").order("display_order"),
-        supabase.from("auction_players").select("*, registration:player_registrations(*)").eq("auction_type", "franchise").order("queue_order"),
+        supabase.from("auction_players").select("*, registration:player_registrations(*)").eq("auction_type", mode.dbType).order("queue_order"),
         supabase.from("auction_bids").select("*").order("created_at", { ascending: false }),
         isAdmin
-          ? supabase.rpc("auction_history_state")
+          ? (isFemaleAuction
+              ? supabase.rpc("auction_scope_history_state", { p_auction_type: mode.dbType })
+              : supabase.rpc("auction_history_state"))
           : Promise.resolve({ data: [{ can_undo: false, can_redo: false }], error: null }),
+        isFemaleAuction
+          ? supabase.from("auction_franchise_budgets").select("*").eq("auction_type", mode.dbType)
+          : Promise.resolve({ data: [], error: null }),
       ]);
       if (configResult.error) throw configResult.error;
       if (franchisesResult.error) throw franchisesResult.error;
       if (playersResult.error) throw playersResult.error;
       if (bidsResult.error) throw bidsResult.error;
       if (historyResult.error) throw historyResult.error;
+      if (budgetsResult.error) throw budgetsResult.error;
       setAuctionConfig(configResult.data);
       if (franchisesResult.data?.length) setFranchiseList(franchisesResult.data);
       setAuctionPlayers(playersResult.data || []);
       setBids(bidsResult.data || []);
+      setScopeBudgets(budgetsResult.data || []);
       const historyState = Array.isArray(historyResult.data)
         ? historyResult.data[0]
         : historyResult.data;
@@ -132,7 +148,7 @@ export default function Auction() {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, isFemaleAuction, mode.dbType]);
 
   useEffect(() => {
     void refreshAuctionData(true);
@@ -146,8 +162,7 @@ export default function Auction() {
       refreshTimeout = setTimeout(() => void refreshAuctionData(), 150);
     };
     const ch = supabase.channel("auction-live-v2")
-      .on("postgres_changes", { event: "*",      schema: "public", table: "auction_config"  }, (p) =>
-        setAuctionConfig((prev) => ({ ...prev, ...p.new })))
+      .on("postgres_changes", { event: "*",      schema: "public", table: "auction_config"  }, refreshSoon)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "auction_bids"    }, (p) => {
         const fid = String(p.new.franchise_id);
         setFlashFid(fid);
@@ -157,6 +172,8 @@ export default function Auction() {
       .on("postgres_changes", { event: "*",      schema: "public", table: "auction_players" }, refreshSoon)
       .on("postgres_changes", { event: "*",      schema: "public", table: "franchises"      }, refreshSoon)
       .on("postgres_changes", { event: "*",      schema: "public", table: "auction_action_history" }, refreshSoon)
+      .on("postgres_changes", { event: "*",      schema: "public", table: "female_auction_action_history" }, refreshSoon)
+      .on("postgres_changes", { event: "*",      schema: "public", table: "auction_franchise_budgets" }, refreshSoon)
       .subscribe();
     return () => {
       clearTimeout(refreshTimeout);
@@ -198,9 +215,9 @@ export default function Auction() {
     setTimeout(() => setFlashFid(null), 1200);
 
     try {
-      const { error } = await supabase.rpc("auction_place_bid", {
-        p_franchise_id: franchiseId,
-      });
+      const { error } = isFemaleAuction
+        ? await supabase.rpc("auction_scope_place_bid", { p_auction_type: mode.dbType, p_franchise_id: franchiseId })
+        : await supabase.rpc("auction_place_bid", { p_franchise_id: franchiseId });
 
       if (error) {
         // Rollback optimistic update on failure
@@ -229,6 +246,8 @@ export default function Auction() {
     auctionConfig,
     nextBidAmount,
     refreshAuctionData,
+    isFemaleAuction,
+    mode.dbType,
   ]);
 
   /* ─── Undo / Redo ─── */
@@ -237,10 +256,12 @@ export default function Auction() {
 
     setHistoryPending(true);
     try {
-      const functionName = direction === "undo"
-        ? "auction_undo_last"
-        : "auction_redo_last";
-      const { error } = await supabase.rpc(functionName);
+      const functionName = isFemaleAuction
+        ? (direction === "undo" ? "auction_scope_undo_last" : "auction_scope_redo_last")
+        : (direction === "undo" ? "auction_undo_last" : "auction_redo_last");
+      const { error } = isFemaleAuction
+        ? await supabase.rpc(functionName, { p_auction_type: mode.dbType })
+        : await supabase.rpc(functionName);
 
       if (error) {
         console.error(`Unable to ${direction} auction action:`, error);
@@ -252,78 +273,81 @@ export default function Auction() {
     } finally {
       setHistoryPending(false);
     }
-  }, [historyPending, isAdmin, refreshAuctionData]);
+  }, [historyPending, isAdmin, refreshAuctionData, isFemaleAuction, mode.dbType]);
 
   /* ─── Advance Player ─── */
   const advanceToNextPlayer = useCallback(async () => {
     if (!isAdmin || !currentPlayer) return;
     // A skipped player is recorded as unsold; the database advances the queue atomically.
-    const { error } = await supabase.rpc("auction_complete_current", { p_outcome: "unsold" });
+    const { error } = isFemaleAuction
+      ? await supabase.rpc("auction_scope_complete_current", { p_auction_type: mode.dbType, p_outcome: "unsold" })
+      : await supabase.rpc("auction_complete_current", { p_outcome: "unsold" });
     if (error) {
       console.error("Unable to advance auction:", error);
       alert(error.message);
       return;
     }
     await refreshAuctionData();
-  }, [isAdmin, currentPlayer, refreshAuctionData]);
+  }, [isAdmin, currentPlayer, refreshAuctionData, isFemaleAuction, mode.dbType]);
 
   /* ─── SOLD ─── */
   const markSold = useCallback(async () => {
     if (!isAdmin || !currentPlayer || !highestBid) return;
-    const { error } = await supabase.rpc("auction_complete_current", { p_outcome: "sold" });
+    const { error } = isFemaleAuction
+      ? await supabase.rpc("auction_scope_complete_current", { p_auction_type: mode.dbType, p_outcome: "sold" })
+      : await supabase.rpc("auction_complete_current", { p_outcome: "sold" });
     if (error) {
       console.error("Unable to mark sold:", error);
       alert(error.message);
       return;
     }
     await refreshAuctionData();
-  }, [isAdmin, currentPlayer, highestBid, refreshAuctionData]);
+  }, [isAdmin, currentPlayer, highestBid, refreshAuctionData, isFemaleAuction, mode.dbType]);
 
   /* ─── UNSOLD ─── */
   const markUnsold = useCallback(async () => {
     if (!isAdmin || !currentPlayer) return;
-    const { error } = await supabase.rpc("auction_complete_current", { p_outcome: "unsold" });
+    const { error } = isFemaleAuction
+      ? await supabase.rpc("auction_scope_complete_current", { p_auction_type: mode.dbType, p_outcome: "unsold" })
+      : await supabase.rpc("auction_complete_current", { p_outcome: "unsold" });
     if (error) {
       console.error("Unable to mark unsold:", error);
       alert(error.message);
       return;
     }
     await refreshAuctionData();
-  }, [isAdmin, currentPlayer, refreshAuctionData]);
+  }, [isAdmin, currentPlayer, refreshAuctionData, isFemaleAuction, mode.dbType]);
 
   /* ─── Toggle / Switch / Start ─── */
   const toggleAuction = useCallback(async () => {
     if (!isAdmin || !auctionConfig) return;
-    const { error } = await supabase.rpc("auction_toggle_live");
+    const { error } = isFemaleAuction
+      ? await supabase.rpc("auction_scope_toggle_live", { p_auction_type: mode.dbType })
+      : await supabase.rpc("auction_toggle_live");
     if (error) {
       console.error("Unable to toggle auction:", error);
       alert(error.message);
       return;
     }
     await refreshAuctionData();
-  }, [isAdmin, auctionConfig, refreshAuctionData]);
+  }, [isAdmin, auctionConfig, refreshAuctionData, isFemaleAuction, mode.dbType]);
 
-  const switchGenderMode = useCallback(async (mode) => {
-    if (!isAdmin || !auctionConfig) return;
-    const { error } = await supabase.rpc("auction_set_gender", { p_gender_mode: mode });
-    if (error) {
-      console.error("Unable to change gender mode:", error);
-      alert(error.message);
-      return;
-    }
-    await refreshAuctionData();
-  }, [isAdmin, auctionConfig, refreshAuctionData]);
+  const switchAuctionMode = useCallback((nextMode) => {
+    setSearchParams(nextMode === "all" ? {} : { mode: nextMode });
+  }, [setSearchParams]);
 
   const startAuction = useCallback(async () => {
     if (!isAdmin || !auctionConfig) return;
-    const { error } = await supabase.rpc("auction_start");
+    const { error } = isFemaleAuction
+      ? await supabase.rpc("auction_scope_start", { p_auction_type: mode.dbType })
+      : await supabase.rpc("auction_start");
     if (error) {
       console.error("Unable to start auction:", error);
       alert(error.message);
       return;
     }
     await refreshAuctionData();
-  }, [isAdmin, auctionConfig, refreshAuctionData]);
+  }, [isAdmin, auctionConfig, refreshAuctionData, isFemaleAuction, mode.dbType]);
 
   /* ─── UI vars ─── */
   const isPaused   = auctionConfig?.status === "paused";
@@ -352,7 +376,7 @@ export default function Auction() {
             <div>
               <h1 className="font-display text-base font-bold text-white leading-tight">Live Auction</h1>
               <p className="text-[10px] text-white/40 leading-none">
-                {auctionConfig?.gender_mode || "Male"} Players · Season 2026
+                {mode.label} Auction · Season 2026
               </p>
             </div>
             {isLive && (
@@ -373,7 +397,7 @@ export default function Auction() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate("/auction-summary")}
+            <button onClick={() => navigate(`/auction-summary${mode.key === "all" ? "" : `?mode=${mode.key}`}`)}
               className="flex items-center gap-1 rounded-md border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-bold text-cyan-200 transition hover:bg-cyan-400/20">
               <ClipboardList className="h-3 w-3" /> Summary
             </button>
@@ -402,17 +426,19 @@ export default function Auction() {
             {isAdmin && (
               <>
               <div className="flex overflow-hidden rounded-md border border-white/10 bg-white/[0.04]">
-                {["Male", "Female"].map((g) => (
-                  <button key={g} onClick={() => switchGenderMode(g)}
-                    className={`px-2.5 py-0.5 text-[11px] font-bold transition ${auctionConfig?.gender_mode === g ? "bg-amber-400 text-black" : "text-white/40 hover:text-white"}`}>
-                    {g}
+                {Object.values(AUCTION_MODES).map((option) => (
+                  <button key={option.key} onClick={() => switchAuctionMode(option.key)}
+                    className={`px-2.5 py-0.5 text-[11px] font-bold transition ${mode.key === option.key ? "bg-amber-400 text-black" : "text-white/40 hover:text-white"}`}>
+                    {option.label}
                   </button>
                 ))}
               </div>
-              <button onClick={() => navigate("/retention")}
-                className="flex items-center gap-1 rounded-md border border-purple-500/40 bg-purple-500/10 px-2.5 py-1 text-[11px] font-bold text-purple-300 hover:bg-purple-500/20 transition">
-                <Shield className="h-3 w-3" /> Retention
-              </button>
+              {!isFemaleAuction && (
+                <button onClick={() => navigate("/retention")}
+                  className="flex items-center gap-1 rounded-md border border-purple-500/40 bg-purple-500/10 px-2.5 py-1 text-[11px] font-bold text-purple-300 hover:bg-purple-500/20 transition">
+                  <Shield className="h-3 w-3" /> Retention
+                </button>
+              )}
               {isSetup ? (
                 <button onClick={startAuction}
                   className="flex items-center gap-1 rounded-md bg-amber-400 px-3 py-1 text-[11px] font-bold text-black hover:brightness-110 transition shadow-md shadow-amber-400/20">
@@ -641,12 +667,13 @@ export default function Auction() {
                 const isFlashing = fid === String(flashFid);
                 const remaining  = (f.total_budget || 10000) - (f.spent_amount || 0);
 
-                // Minimum squad tracking (35 combined male+female, leader counts as 1)
-                const roster   = rosterCountsByFranchise[fid] || 0;
-                const needed   = Math.max(0, 35 - roster - 1); // -1 for the franchise leader
-                const reserved = needed * (auctionConfig?.base_price ?? 200);
-                const isDanger  = needed > 0 && remaining < reserved;          // can't even do base price
-                const isWarning = needed > 0 && !isDanger && remaining <= reserved; // exactly at base-price limit
+                const roster = rosterCountsByFranchise[fid] || 0;
+                const maxPlayers = isFemaleAuction ? (f.max_players || 11) : null;
+                const isFull = maxPlayers != null && roster >= maxPlayers;
+                const needed = isFemaleAuction ? Math.max(0, maxPlayers - roster) : Math.max(0, 35 - roster - 1);
+                const reserved = isFemaleAuction ? 0 : needed * (auctionConfig?.base_price ?? 200);
+                const isDanger = !isFemaleAuction && needed > 0 && remaining < reserved;
+                const isWarning = !isFemaleAuction && needed > 0 && !isDanger && remaining <= reserved;
 
                 return (
                   <motion.div key={f.id}
@@ -670,10 +697,10 @@ export default function Auction() {
                       ₹ {remaining.toLocaleString("en-IN")}
                     </p>
 
-                    {/* Min-35 tracker */}
+                    {/* Squad tracker */}
                     {needed > 0 && (
                       <p className="mt-0.5 text-[8px] font-bold text-white/40">
-                        Needs <span className="text-white/70">{needed}</span> more
+                        {isFemaleAuction ? "Slots " : "Needs "}<span className="text-white/70">{needed}</span>{isFemaleAuction ? " left" : " more"}
                       </p>
                     )}
                     {isDanger && (
@@ -688,7 +715,7 @@ export default function Auction() {
                     )}
 
                     <button onClick={() => placeBidForFranchise(f.id)}
-                      disabled={!currentPlayer || !isAdmin || bidPending || isHighest}
+                      disabled={!currentPlayer || !isAdmin || bidPending || isHighest || isFull}
                       className={`mt-1.5 w-full rounded-lg py-1 text-[9px] font-black uppercase tracking-wide transition disabled:opacity-30 disabled:cursor-not-allowed ${
                         isHighest
                           ? "bg-amber-400 text-black hover:brightness-110"

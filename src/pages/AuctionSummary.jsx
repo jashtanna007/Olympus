@@ -11,12 +11,13 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import FranchiseEmblem from "../components/common/FranchiseEmblem";
 import { franchises as mockFranchises } from "../data/mockData";
 import { supabase } from "../lib/supabase";
 import { downloadAuctionWorkbook } from "../utils/downloadAuctionWorkbook";
 import { useAuth } from "../contexts/AuthContext";
+import { FEMALE_AUCTION_FRANCHISE_SLUGS, resolveAuctionMode } from "../lib/auctionModes";
 
 function getJoinedRegistration(row) {
   const raw = row?.registration || row?.player_registrations;
@@ -30,6 +31,9 @@ function formatMoney(amount) {
 
 export default function AuctionSummary() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const mode = resolveAuctionMode(searchParams.get("mode") || "all");
+  const isFemaleAuction = mode.femaleOnly;
   const { isAdmin } = useAuth();
   const [franchises, setFranchises] = useState([]);
   const [members, setMembers] = useState([]);
@@ -38,13 +42,14 @@ export default function AuctionSummary() {
   const [refreshing, setRefreshing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
+  const [scopeBudgets, setScopeBudgets] = useState([]);
 
   const loadSummary = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setRefreshing(true);
     setError("");
 
     try {
-      const [franchiseResult, memberResult, playerResult] = await Promise.all([
+      const [franchiseResult, memberResult, playerResult, budgetsResult] = await Promise.all([
         supabase.from("franchises").select("*").order("display_order"),
         supabase
           .from("franchise_members")
@@ -56,17 +61,23 @@ export default function AuctionSummary() {
           .select(
             "id, status, sold_price, sold_at, sold_to_franchise_id, registration:player_registrations(id, full_name, roll_number, photo_url, sports)"
           )
+          .eq("auction_type", mode.dbType)
           .in("status", ["sold", "retained", "unsold"])
           .order("sold_at", { ascending: true, nullsFirst: false }),
+        isFemaleAuction
+          ? supabase.from("auction_franchise_budgets").select("*").eq("auction_type", mode.dbType)
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (franchiseResult.error) throw franchiseResult.error;
       if (memberResult.error) throw memberResult.error;
       if (playerResult.error) throw playerResult.error;
+      if (budgetsResult.error) throw budgetsResult.error;
 
       setFranchises(franchiseResult.data || []);
       setMembers(memberResult.data || []);
       setAuctionPlayers(playerResult.data || []);
+      setScopeBudgets(budgetsResult.data || []);
     } catch (loadError) {
       console.error("Auction summary load failed:", loadError);
       setError(loadError.message || "Unable to load the auction summary.");
@@ -74,7 +85,7 @@ export default function AuctionSummary() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isFemaleAuction, mode.dbType]);
 
   useEffect(() => {
     void loadSummary();
@@ -101,7 +112,9 @@ export default function AuctionSummary() {
   }, [loadSummary]);
 
   const summary = useMemo(() => {
-    return franchises.map((franchise) => {
+    return franchises
+      .filter((franchise) => !isFemaleAuction || FEMALE_AUCTION_FRANCHISE_SLUGS.includes(franchise.slug))
+      .map((franchise) => {
       const mock = mockFranchises.find((item) => item.name === franchise.name);
       const leaderRow = members.find(
         (member) => String(member.franchise_id) === String(franchise.id) && member.role === "leader"
@@ -118,13 +131,15 @@ export default function AuctionSummary() {
           registration: getJoinedRegistration(player),
         }));
 
-      const leader = leaderRow
+      const leader = !isFemaleAuction && leaderRow
         ? {
             name: leaderRow.full_name,
             rollNumber: leaderRow.roll_number,
             email: leaderRow.institute_email,
           }
-        : mock?.leader || null;
+        : (isFemaleAuction ? null : mock?.leader || null);
+
+      const scopeBudget = scopeBudgets.find((b) => String(b.franchise_id) === String(franchise.id));
 
       return {
         ...mock,
@@ -134,10 +149,12 @@ export default function AuctionSummary() {
         secondaryColor: mock?.secondaryColor || "#2563EB",
         leader,
         roster,
-        remainingBudget: Number(franchise.total_budget || 0) - Number(franchise.spent_amount || 0),
+        total_budget: scopeBudget?.total_budget ?? franchise.total_budget,
+        spent_amount: scopeBudget?.spent_amount ?? franchise.spent_amount,
+        remainingBudget: Number(scopeBudget?.total_budget ?? franchise.total_budget ?? 0) - Number(scopeBudget?.spent_amount ?? franchise.spent_amount ?? 0),
       };
     });
-  }, [auctionPlayers, franchises, members]);
+  }, [auctionPlayers, franchises, members, isFemaleAuction, scopeBudgets]);
 
   const unsoldPlayers = useMemo(
     () =>
@@ -168,6 +185,7 @@ export default function AuctionSummary() {
       await downloadAuctionWorkbook({
         summary,
         unsoldPlayers,
+        auctionLabel: mode.label,
       });
     } catch (downloadError) {
       console.error(
@@ -187,6 +205,7 @@ export default function AuctionSummary() {
     isAdmin,
     summary,
     unsoldPlayers,
+    mode.label,
   ]);
 
   if (loading) {
@@ -204,7 +223,7 @@ export default function AuctionSummary() {
           <div>
             <button
               type="button"
-              onClick={() => navigate("/auction")}
+              onClick={() => navigate(`/auction${mode.key === "all" ? "" : `?mode=${mode.key}`}`)}
               className="mb-4 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/65 transition hover:bg-white/[0.08] hover:text-white"
             >
               <ArrowLeft className="h-4 w-4" /> Back to auction
@@ -216,7 +235,7 @@ export default function AuctionSummary() {
                 Live auction register
               </span>
             </div>
-            <h1 className="mt-4 font-display text-4xl font-bold sm:text-5xl">Auction Summary</h1>
+            <h1 className="mt-4 font-display text-4xl font-bold sm:text-5xl">{mode.label} Auction Summary</h1>
             <p className="mt-2 max-w-3xl text-sm text-white/50">
               Franchise-wise leaders, purchased players, prices, purse usage, and unsold-player status.
             </p>
@@ -276,7 +295,7 @@ export default function AuctionSummary() {
           <div className="border-b border-white/[0.07] px-4 py-3">
             <h2 className="font-display text-lg font-bold">Franchise purchase register</h2>
             <p className="mt-1 text-xs text-white/35">
-              All eight franchises are displayed in a four-column purchase register.
+              {isFemaleAuction ? "The four participating franchises are displayed below." : "All eight franchises are displayed in a four-column purchase register."}
             </p>
           </div>
 

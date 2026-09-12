@@ -70,7 +70,7 @@ export default function App() {
               />
               <Route
                 path="/girls-auction"
-                element={<GirlsAuction />}
+                element={<Navigate to="/auction?mode=female-football" replace />}
               />
 
               {/* Admin-only routes */}
