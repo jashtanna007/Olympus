@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -35,6 +35,10 @@ export default function Auction() {
   const [canUndo, setCanUndo]               = useState(false);
   const [canRedo, setCanRedo]               = useState(false);
   const [scopeBudgets, setScopeBudgets]       = useState([]);
+
+  // Local RPCs already update this screen directly. Realtime events generated
+  // by the same RPC should not immediately trigger another full reload.
+  const lastLocalMutationAtRef = useRef(0);
 
   /* ─── Merge DB franchises with mock logo data ─── */
   // DB rows may not have logo/color fields → patch them from mockFranchises
@@ -112,35 +116,88 @@ export default function Auction() {
   /* ─── Load Data ─── */
   const refreshAuctionData = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
+
     try {
-      const [configResult, franchisesResult, playersResult, bidsResult, historyResult, budgetsResult] = await Promise.all([
-        supabase.from("auction_config").select("*").eq("auction_type", mode.dbType).maybeSingle(),
-        supabase.from("franchises").select("*").order("display_order"),
-        supabase.from("auction_players").select("*, registration:player_registrations(*)").eq("auction_type", mode.dbType).order("queue_order"),
-        supabase.from("auction_bids").select("*").order("created_at", { ascending: false }),
+      // Config first so bid loading can be scoped to only the current player.
+      const configResult = await supabase
+        .from("auction_config")
+        .select("*")
+        .eq("auction_type", mode.dbType)
+        .maybeSingle();
+
+      if (configResult.error) throw configResult.error;
+
+      const config = configResult.data;
+
+      const bidsQuery = config?.current_player_id
+        ? supabase
+            .from("auction_bids")
+            .select("*")
+            .eq("auction_player_id", config.current_player_id)
+            .order("amount", { ascending: false })
+        : Promise.resolve({ data: [], error: null });
+
+      const [
+        franchisesResult,
+        playersResult,
+        bidsResult,
+        historyResult,
+        budgetsResult,
+      ] = await Promise.all([
+        supabase
+          .from("franchises")
+          .select("*")
+          .order("display_order"),
+
+        supabase
+          .from("auction_players")
+          .select("*, registration:player_registrations(*)")
+          .eq("auction_type", mode.dbType)
+          .order("queue_order"),
+
+        bidsQuery,
+
         isAdmin
-          ? (isFemaleAuction
-              ? supabase.rpc("auction_scope_history_state", { p_auction_type: mode.dbType })
-              : supabase.rpc("auction_history_state"))
-          : Promise.resolve({ data: [{ can_undo: false, can_redo: false }], error: null }),
+          ? (
+              isFemaleAuction
+                ? supabase.rpc("auction_scope_history_state", {
+                    p_auction_type: mode.dbType,
+                  })
+                : supabase.rpc("auction_history_state")
+            )
+          : Promise.resolve({
+              data: [{ can_undo: false, can_redo: false }],
+              error: null,
+            }),
+
         isFemaleAuction
-          ? supabase.from("auction_franchise_budgets").select("*").eq("auction_type", mode.dbType)
+          ? supabase
+              .from("auction_franchise_budgets")
+              .select("*")
+              .eq("auction_type", mode.dbType)
           : Promise.resolve({ data: [], error: null }),
       ]);
-      if (configResult.error) throw configResult.error;
+
       if (franchisesResult.error) throw franchisesResult.error;
       if (playersResult.error) throw playersResult.error;
       if (bidsResult.error) throw bidsResult.error;
       if (historyResult.error) throw historyResult.error;
       if (budgetsResult.error) throw budgetsResult.error;
-      setAuctionConfig(configResult.data);
-      if (franchisesResult.data?.length) setFranchiseList(franchisesResult.data);
+
+      setAuctionConfig(config);
+
+      if (franchisesResult.data?.length) {
+        setFranchiseList(franchisesResult.data);
+      }
+
       setAuctionPlayers(playersResult.data || []);
       setBids(bidsResult.data || []);
       setScopeBudgets(budgetsResult.data || []);
+
       const historyState = Array.isArray(historyResult.data)
         ? historyResult.data[0]
         : historyResult.data;
+
       setCanUndo(Boolean(historyState?.can_undo));
       setCanRedo(Boolean(historyState?.can_redo));
     } catch (error) {
@@ -150,6 +207,28 @@ export default function Auction() {
     }
   }, [isAdmin, isFemaleAuction, mode.dbType]);
 
+  const refreshHistoryState = useCallback(async () => {
+    if (!isAdmin) return;
+
+    const result = isFemaleAuction
+      ? await supabase.rpc("auction_scope_history_state", {
+          p_auction_type: mode.dbType,
+        })
+      : await supabase.rpc("auction_history_state");
+
+    if (result.error) {
+      console.error("Unable to refresh auction history:", result.error);
+      return;
+    }
+
+    const state = Array.isArray(result.data)
+      ? result.data[0]
+      : result.data;
+
+    setCanUndo(Boolean(state?.can_undo));
+    setCanRedo(Boolean(state?.can_redo));
+  }, [isAdmin, isFemaleAuction, mode.dbType]);
+
   useEffect(() => {
     void refreshAuctionData(true);
   }, [refreshAuctionData]);
@@ -157,29 +236,135 @@ export default function Auction() {
   /* ─── Realtime ─── */
   useEffect(() => {
     let refreshTimeout;
+
     const refreshSoon = () => {
+      // Ignore realtime echoes from our own RPC for a short period.
+      if (Date.now() - lastLocalMutationAtRef.current < 700) {
+        return;
+      }
+
       clearTimeout(refreshTimeout);
-      refreshTimeout = setTimeout(() => void refreshAuctionData(), 150);
+
+      refreshTimeout = setTimeout(() => {
+        void refreshAuctionData();
+      }, 180);
     };
-    const ch = supabase.channel("auction-live-v2")
-      .on("postgres_changes", { event: "*",      schema: "public", table: "auction_config"  }, refreshSoon)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "auction_bids"    }, (p) => {
-        const fid = String(p.new.franchise_id);
-        setFlashFid(fid);
-        setTimeout(() => setFlashFid(null), 1200);
-        refreshSoon();
-      })
-      .on("postgres_changes", { event: "*",      schema: "public", table: "auction_players" }, refreshSoon)
-      .on("postgres_changes", { event: "*",      schema: "public", table: "franchises"      }, refreshSoon)
-      .on("postgres_changes", { event: "*",      schema: "public", table: "auction_action_history" }, refreshSoon)
-      .on("postgres_changes", { event: "*",      schema: "public", table: "female_auction_action_history" }, refreshSoon)
-      .on("postgres_changes", { event: "*",      schema: "public", table: "auction_franchise_budgets" }, refreshSoon)
-      .subscribe();
+
+    let channel = supabase
+      .channel(`auction-live-${mode.dbType}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "auction_config",
+          filter: `auction_type=eq.${mode.dbType}`,
+        },
+        refreshSoon
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "auction_players",
+          filter: `auction_type=eq.${mode.dbType}`,
+        },
+        refreshSoon
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "auction_bids",
+        },
+        (payload) => {
+          const bid = payload.new;
+
+          // Ignore bids belonging to another auction/current player.
+          if (
+            !auctionConfig?.current_player_id ||
+            String(bid.auction_player_id) !==
+              String(auctionConfig.current_player_id)
+          ) {
+            return;
+          }
+
+          setBids((prev) => {
+            if (prev.some((b) => String(b.id) === String(bid.id))) {
+              return prev;
+            }
+
+            // Remove optimistic equivalent before inserting DB row.
+            const withoutOptimistic = prev.filter(
+              (b) =>
+                !b._optimistic ||
+                !(
+                  String(b.franchise_id) === String(bid.franchise_id) &&
+                  Number(b.amount) === Number(bid.amount)
+                )
+            );
+
+            return [bid, ...withoutOptimistic];
+          });
+
+          setCanUndo(true);
+          setCanRedo(false);
+
+          const fid = String(bid.franchise_id);
+          setFlashFid(fid);
+          setTimeout(() => setFlashFid(null), 700);
+        }
+      );
+
+    if (isFemaleAuction) {
+      channel = channel
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "female_auction_action_history",
+            filter: `auction_type=eq.${mode.dbType}`,
+          },
+          () => void refreshHistoryState()
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "auction_franchise_budgets",
+            filter: `auction_type=eq.${mode.dbType}`,
+          },
+          refreshSoon
+        );
+    } else {
+      channel = channel.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "auction_action_history",
+        },
+        () => void refreshHistoryState()
+      );
+    }
+
+    channel.subscribe();
+
     return () => {
       clearTimeout(refreshTimeout);
-      supabase.removeChannel(ch);
+      supabase.removeChannel(channel);
     };
-  }, [refreshAuctionData]);
+  }, [
+    auctionConfig?.current_player_id,
+    isFemaleAuction,
+    mode.dbType,
+    refreshAuctionData,
+    refreshHistoryState,
+  ]);
 
   /* ─── BID NOW ─── */
   const placeBidForFranchise = useCallback(async (franchiseId) => {
@@ -215,26 +400,40 @@ export default function Auction() {
     setTimeout(() => setFlashFid(null), 1200);
 
     try {
-      const { error } = isFemaleAuction
-        ? await supabase.rpc("auction_scope_place_bid", { p_auction_type: mode.dbType, p_franchise_id: franchiseId })
-        : await supabase.rpc("auction_place_bid", { p_franchise_id: franchiseId });
+      const { data: realBid, error } = isFemaleAuction
+        ? await supabase.rpc("auction_scope_place_bid", {
+            p_auction_type: mode.dbType,
+            p_franchise_id: franchiseId,
+          })
+        : await supabase.rpc("auction_place_bid", {
+            p_franchise_id: franchiseId,
+          });
 
       if (error) {
-        // Rollback optimistic update on failure
-        setBids((prev) => prev.filter((b) => b.id !== optimisticBid.id));
+        setBids((prev) =>
+          prev.filter((b) => b.id !== optimisticBid.id)
+        );
+
         console.error("Bid rejected:", error);
         alert(error.message);
-        await refreshAuctionData();
         return;
       }
 
-      // Every accepted bid is written to auction_action_history by the RPC,
-      // so Undo is immediately available. Do not rely only on realtime.
+      lastLocalMutationAtRef.current = Date.now();
+
+      // RPC returns the persisted bid row. Replace optimistic state directly.
+      if (realBid) {
+        setBids((prev) => [
+          realBid,
+          ...prev.filter((b) => b.id !== optimisticBid.id),
+        ]);
+      }
+
       setCanUndo(true);
       setCanRedo(false);
 
-      // Replace the optimistic bid and refresh history state immediately.
-      await refreshAuctionData();
+      // Lightweight history refresh only; do not reload the whole auction.
+      void refreshHistoryState();
     } finally {
       setBidPending(false);
     }
@@ -246,6 +445,7 @@ export default function Auction() {
     auctionConfig,
     nextBidAmount,
     refreshAuctionData,
+    refreshHistoryState,
     isFemaleAuction,
     mode.dbType,
   ]);
@@ -293,43 +493,71 @@ export default function Auction() {
   /* ─── SOLD ─── */
   const markSold = useCallback(async () => {
     if (!isAdmin || !currentPlayer || !highestBid) return;
-    const { error } = isFemaleAuction
-      ? await supabase.rpc("auction_scope_complete_current", { p_auction_type: mode.dbType, p_outcome: "sold" })
-      : await supabase.rpc("auction_complete_current", { p_outcome: "sold" });
+    const { data, error } = isFemaleAuction
+      ? await supabase.rpc("auction_scope_complete_current", {
+          p_auction_type: mode.dbType,
+          p_outcome: "sold",
+        })
+      : await supabase.rpc("auction_complete_current", {
+          p_outcome: "sold",
+        });
+
     if (error) {
       console.error("Unable to mark sold:", error);
       alert(error.message);
       return;
     }
-    await refreshAuctionData();
+
+    lastLocalMutationAtRef.current = Date.now();
+    if (data) setAuctionConfig(data);
+    setCanUndo(true);
+    setCanRedo(false);
+    void refreshAuctionData();
   }, [isAdmin, currentPlayer, highestBid, refreshAuctionData, isFemaleAuction, mode.dbType]);
 
   /* ─── UNSOLD ─── */
   const markUnsold = useCallback(async () => {
     if (!isAdmin || !currentPlayer) return;
-    const { error } = isFemaleAuction
-      ? await supabase.rpc("auction_scope_complete_current", { p_auction_type: mode.dbType, p_outcome: "unsold" })
-      : await supabase.rpc("auction_complete_current", { p_outcome: "unsold" });
+    const { data, error } = isFemaleAuction
+      ? await supabase.rpc("auction_scope_complete_current", {
+          p_auction_type: mode.dbType,
+          p_outcome: "unsold",
+        })
+      : await supabase.rpc("auction_complete_current", {
+          p_outcome: "unsold",
+        });
+
     if (error) {
       console.error("Unable to mark unsold:", error);
       alert(error.message);
       return;
     }
-    await refreshAuctionData();
+
+    lastLocalMutationAtRef.current = Date.now();
+    if (data) setAuctionConfig(data);
+    setCanUndo(true);
+    setCanRedo(false);
+    void refreshAuctionData();
   }, [isAdmin, currentPlayer, refreshAuctionData, isFemaleAuction, mode.dbType]);
 
   /* ─── Toggle / Switch / Start ─── */
   const toggleAuction = useCallback(async () => {
     if (!isAdmin || !auctionConfig) return;
-    const { error } = isFemaleAuction
-      ? await supabase.rpc("auction_scope_toggle_live", { p_auction_type: mode.dbType })
+    const { data, error } = isFemaleAuction
+      ? await supabase.rpc("auction_scope_toggle_live", {
+          p_auction_type: mode.dbType,
+        })
       : await supabase.rpc("auction_toggle_live");
+
     if (error) {
       console.error("Unable to toggle auction:", error);
       alert(error.message);
       return;
     }
-    await refreshAuctionData();
+
+    lastLocalMutationAtRef.current = Date.now();
+    if (data) setAuctionConfig(data);
+    void refreshAuctionData();
   }, [isAdmin, auctionConfig, refreshAuctionData, isFemaleAuction, mode.dbType]);
 
   const switchAuctionMode = useCallback((nextMode) => {
@@ -338,15 +566,21 @@ export default function Auction() {
 
   const startAuction = useCallback(async () => {
     if (!isAdmin || !auctionConfig) return;
-    const { error } = isFemaleAuction
-      ? await supabase.rpc("auction_scope_start", { p_auction_type: mode.dbType })
+    const { data, error } = isFemaleAuction
+      ? await supabase.rpc("auction_scope_start", {
+          p_auction_type: mode.dbType,
+        })
       : await supabase.rpc("auction_start");
+
     if (error) {
       console.error("Unable to start auction:", error);
       alert(error.message);
       return;
     }
-    await refreshAuctionData();
+
+    lastLocalMutationAtRef.current = Date.now();
+    if (data) setAuctionConfig(data);
+    void refreshAuctionData();
   }, [isAdmin, auctionConfig, refreshAuctionData, isFemaleAuction, mode.dbType]);
 
   /* ─── UI vars ─── */
