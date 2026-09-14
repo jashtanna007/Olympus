@@ -904,10 +904,15 @@ export default function Auction() {
                 const roster = rosterCountsByFranchise[fid] || 0;
                 const maxPlayers = isFemaleAuction ? (f.max_players || 11) : null;
                 const isFull = maxPlayers != null && roster >= maxPlayers;
+                const baseP = auctionConfig?.base_price ?? 200;
                 const needed = isFemaleAuction ? Math.max(0, maxPlayers - roster) : Math.max(0, 35 - roster - 1);
-                const reserved = isFemaleAuction ? 0 : needed * (auctionConfig?.base_price ?? 200);
+                const reserved = isFemaleAuction ? 0 : needed * baseP;
                 const isDanger = !isFemaleAuction && needed > 0 && remaining < reserved;
                 const isWarning = !isFemaleAuction && needed > 0 && !isDanger && remaining <= reserved;
+                // Max they can bid on a single player and still fill the squad at base price
+                const maxBid = !isFemaleAuction && needed > 0
+                  ? Math.max(baseP, remaining - Math.max(0, needed - 1) * baseP)
+                  : null;
 
                 return (
                   <motion.div key={f.id}
@@ -930,6 +935,13 @@ export default function Auction() {
                     <p className="mt-0.5 text-[12px] font-extrabold text-emerald-300">
                       ₹ {remaining.toLocaleString("en-IN")}
                     </p>
+                    {maxBid !== null && (
+                      <p className="mt-0.5 text-[8px] font-bold text-white/40">
+                        Max bid: <span className={`font-extrabold ${
+                          isDanger ? "text-rose-400" : isWarning ? "text-amber-400" : "text-sky-300"
+                        }`}>₹{maxBid.toLocaleString("en-IN")}</span>
+                      </p>
+                    )}
 
                     {/* Squad tracker */}
                     {needed > 0 && (
